@@ -177,7 +177,7 @@ print("lambda max min", lambdarn.dat.data.max(), lambdarn.dat.data.min())
 # initial guess for Unp1 is Un
 Unp1.assign(Un)
 
-name = "../../../Results/compEuler/gravity-wave/flat/gravity_flat"
+name = "../../Results/compEuler/gravity-wave/flat/gravity_flat"
 file_out = File(name+'.pvd')
 
 rhon_pert = Function(Vp)

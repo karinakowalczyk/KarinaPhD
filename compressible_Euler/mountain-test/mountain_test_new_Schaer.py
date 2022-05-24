@@ -195,7 +195,7 @@ print("lambda max min", lambdarn.dat.data.max(), lambdarn.dat.data.min())
 # initial guess for Unp1 is Un
 Unp1.assign(Un)
 
-name = "../../../Results/compEuler/mountain-Schaer/mountain_Schaer"
+name = "../../Results/compEuler/mountain-Schaer/mountain_Schaer"
 file_out = File(name+'.pvd')
 
 rhon_pert = Function(Vp)
