@@ -6,8 +6,7 @@ from tools import *
     without making use of gusto
 '''
 
-
-#set up mesh and parameters for main computations
+# set up mesh and parameters for main computations
 dT = Constant(0)  # to be set later
 parameters = Parameters()
 g = parameters.g
@@ -35,11 +34,11 @@ H = Constant(H)
 V0, _, Vp, Vt, Vtr = build_spaces(mesh, vertical_degree=1, horizontal_degree=1)
 W = V0*Vp*Vt*Vtr
 
-#initialise background temperature
+# initialise background temperature
 # N^2 = (g/theta)dtheta/dz => dtheta/dz = theta N^2g => theta=theta_0exp(N^2gz)
 Tsurf = 300.
 N = parameters.N
-x,z = SpatialCoordinate(mesh)
+x, z = SpatialCoordinate(mesh)
 thetab = Constant(Tsurf)
 
 theta_b = Function(Vt).interpolate(thetab)
@@ -71,7 +70,7 @@ lambdar0 = Function(Vtr, name="lambdar0").assign(lambdar_b)  # we use lambda fro
 
 
 # define trial functions
-zvec = as_vector([0,1])
+zvec = as_vector([0, 1])
 n = FacetNormal(mesh)
 
 Un = Function(W)
@@ -99,50 +98,53 @@ def uadv_eq(w):
     return(-inner(perp(grad(inner(w, perp(unph)))), unph)*dx
            - inner(jump(inner(w, perp(unph)), n), perp_u_upwind(unph))*(dS)
            # - inner(inner(w, perp(unph))* n, unph) * ( ds_t + ds_b )
-                     - 0.5 * inner(unph, unph) * div(w) * dx
-                     #+ 0.5 * inner(u_upwind(unph), u_upwind(unph)) * jump(w, n) * dS_h
-             )
+           - 0.5 * inner(unph, unph) * div(w) * dx
+           # + 0.5 * inner(u_upwind(unph), u_upwind(unph)) * jump(w, n) * dS_h
+           )
+
 
 def u_eqn(w, gammar):
-    return ( inner(w, unp1 - un)*dx + dT* (
-                uadv_eq(w) 
-                - c_p*div(w*thetanph)* Pinph*dx
-                + c_p*jump(thetanph*w, n)*lambdarnp1('+')*dS_h
-                + c_p*inner(thetanph*w, n)*lambdarnp1*(ds_t + ds_b)
-                + c_p*jump(thetanph*w, n)*(0.5*(Pinph('+') + Pinph('-')))*(dS_v)
-                #+ c_p * inner(thetanph * w, n) * Pinph * (ds_v)
-                + gammar('+')*jump(unph,n)*dS_h
-                + gammar*inner(unph,n)*(ds_t + ds_b)
-                + g * inner(w,zvec)*dx)
-                )
+    return (inner(w, unp1 - un)*dx + dT * (
+            uadv_eq(w)
+            - c_p*div(w*thetanph)*Pinph*dx
+            + c_p*jump(thetanph*w, n)*lambdarnp1('+')*dS_h
+            + c_p*inner(thetanph*w, n)*lambdarnp1*(ds_t + ds_b)
+            + c_p*jump(thetanph*w, n)*(0.5*(Pinph('+') + Pinph('-')))*dS_v
+            # + c_p * inner(thetanph * w, n) * Pinph * (ds_v)
+            + gammar('+')*jump(unph, n)*dS_h
+            + gammar*inner(unph, n)*(ds_t + ds_b)
+            + g * inner(w, zvec)*dx)
+            )
 
 
 dS = dS_h + dS_v
+
+
 def rho_eqn(phi):
-    return ( phi*(rhonp1 - rhon)*dx 
-                + dT * (-inner(grad(phi), rhonph*unph)*dx
-                + (phi('+') - phi('-'))*(unn('+')*rhonph('+') - unn('-')*rhonph('-'))*dS
-                #+ dot(phi*unph,n) *ds_v
+    return (phi*(rhonp1 - rhon)*dx
+            + dT * (-inner(grad(phi), rhonph*unph)*dx
+                    + (phi('+') - phi('-'))*(unn('+')*rhonph('+') - unn('-')*rhonph('-'))*dS
+                    # + dot(phi*unph,n) *ds_v
                     )
             )
 
 
 def theta_eqn(chi):
-    return (chi*(thetanp1 - thetan)*dx  
-                    + dT * (inner(chi*unph, grad(thetanph))*dx
+    return (chi*(thetanp1 - thetan)*dx
+            + dT * (inner(chi*unph, grad(thetanph))*dx
                     + (chi('+') - chi('-'))* (unn('+')*thetanph('+') - unn('-')*thetanph('-'))*dS
                     - dot(chi('+')*thetanph('+')*unph('+'),  n('+'))*dS - inner(chi('-')*thetanph('-')*unph('-'), n('-'))*dS
-
-                    #+ dot(unph*chi,n)*thetanph * (ds_v + ds_t + ds_b)
-                    #- inner(chi*thetanph * unph, n)* (ds_v +  ds_t + ds_b)
+                    # + dot(unph*chi,n)*thetanph * (ds_v + ds_t + ds_b)
+                    # - inner(chi*thetanph * unph, n)* (ds_v +  ds_t + ds_b)
                     )
             )
 
 
 # set up test functions and the nonlinear problem
 w, phi, chi, gammar = TestFunctions(W)
-#a = Constant(10000.0)
-eqn = u_eqn(w, gammar) + theta_eqn(chi) + rho_eqn(phi) # + gamma * rho_eqn(div(w))
+
+# a = Constant(10000.0)
+eqn = u_eqn(w, gammar) + theta_eqn(chi) + rho_eqn(phi)  # + gamma * rho_eqn(div(w))
 nprob = NonlinearVariationalProblem(eqn, Unp1)
 
 # multigrid solver
@@ -191,8 +193,8 @@ file_out = File(name+'.pvd')
 
 rhon_pert = Function(Vp)
 thetan_pert = Function(Vt)
-rhon_pert.assign(rhon - rho0)
-thetan_pert.assign(thetan - theta0)
+rhon_pert.assign(rhon - rho_b)
+thetan_pert.assign(thetan - theta_b)
 
 file_out.write(un, rhon_pert, thetan_pert)
 
@@ -210,22 +212,19 @@ while t < tmax - 0.5*dt:
     print(t)
     t += dt
     tdump += dt
-    
+
     nsolver.solve()
 
     Un.assign(Unp1)
 
-    rhon_pert.assign(rhon - rho0)
-    thetan_pert.assign(thetan - theta0)
+    rhon_pert.assign(rhon - rho_b)
+    thetan_pert.assign(thetan - theta_b)
 
-    print("rho max min pert", rhon_pert.dat.data.max(),  rhon_pert.dat.data.min())
+    print("rho max min pert", rhon_pert.dat.data.max(), rhon_pert.dat.data.min())
     print("theta max min pert", thetan_pert.dat.data.max(), thetan_pert.dat.data.min())
-    
+
     if tdump > dumpt - dt*0.5:
         file_out.write(un, rhon_pert, thetan_pert)
-
-        #file_gw.write(un, rhon, thetan, lambdarn)
-        #file2.write(un_pert, rhon_pert, thetan_pert)
+        # file_gw.write(un, rhon, thetan, lambdarn)
+        # file2.write(un_pert, rhon_pert, thetan_pert)
         tdump -= dumpt
-
-
