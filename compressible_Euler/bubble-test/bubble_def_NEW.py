@@ -65,7 +65,7 @@ thetab_pert = delT
 theta0 = Function(Vt, name="theta0").interpolate(theta_b + thetab_pert)
 
 rho0 = Function(Vp, name="rho0").interpolate(rho_b)  # where rho_b solves the hydrostatic balance eq.
-u0 = Function(V0, name="u0").project(as_vector([10.0, 0.0]))
+#u0 = Function(V0, name="u0").project(as_vector([10.0, 0.0]))
 lambdar0 = Function(Vtr, name="lambdar0").assign(lambdar_b)  # we use lambda from hydrostatic solve as initial guess
 
 
@@ -176,7 +176,7 @@ sparameters_mg = {
 nsolver = NonlinearVariationalSolver(nprob, solver_parameters=sparameters_mg)
 
 # start with these initial guesses
-un.assign(u0)
+#un.assign(u0)
 rhon.assign(rho0)
 thetan.assign(theta0)
 lambdarn.assign(lambdar0)
@@ -199,10 +199,10 @@ thetan_pert.assign(thetan - theta_b)
 file_out.write(un, rhon_pert, thetan_pert)
 
 dt = 0.5
-dumpt = 0.5
+dumpt = 20.
 tdump = 0.
 dT.assign(dt)
-tmax = 1000.
+tmax = 2000.
 
 print('tmax', tmax, 'dt', dt)
 t = 0.

@@ -203,7 +203,7 @@ thetan_pert.assign(thetan - theta0)
 file_out.write(un, rhon_pert, thetan_pert)
 
 dt = 5.
-dumpt = 5.
+dumpt = 100.
 tdump = 0.
 dT.assign(dt)
 tmax = 15000.

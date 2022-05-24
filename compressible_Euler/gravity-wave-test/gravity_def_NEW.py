@@ -59,7 +59,7 @@ thetab_pert = 0.01*sin(pi*z/H)/(1+(x-xc)**2/a**2)
 theta0 = Function(Vt, name="theta0").interpolate(theta_b + thetab_pert)
 
 rho0 = Function(Vp, name="rho0").interpolate(rho_b)  # where rho_b solves the hydrostatic balance eq.
-u0 = Function(V0, name="u0").project(as_vector([10.0, 0.0]))
+u0 = Function(V0, name="u0").project(as_vector([20.0, 0.0]))
 lambdar0 = Function(Vtr, name="lambdar0").assign(lambdar_b)  # we use lambda from hydrostatic solve as initial guess
 
 
@@ -192,10 +192,10 @@ thetan_pert.assign(thetan - theta_b)
 file_out.write(un, rhon_pert, thetan_pert)
 
 dt = 12.
-dumpt = 12.
+dumpt = 120.
 tdump = 0.
 dT.assign(dt)
-tmax = 12000.
+tmax = 6000.
 
 print('tmax', tmax, 'dt', dt)
 t = 0.
