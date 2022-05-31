@@ -180,7 +180,19 @@ sparameters_mg = {
         "mg_coarse_assembled_pc_factor_mat_solver_type": "mumps",
     }
 
-nsolver = NonlinearVariationalSolver(nprob, solver_parameters=sparameters_mg)
+sparameters_exact = { "mat_type": "aij",
+                   'snes_monitor': None,
+                   #'snes_view': None,
+                   #'snes_type' : 'ksponly',
+                   'ksp_monitor_true_residual': None,
+                   'snes_converged_reason': None,
+                   'ksp_converged_reason': None,
+                   "ksp_type" : "preonly",
+                   "pc_type" : "lu",
+                   "pc_factor_mat_solver_type": "mumps"
+                   }
+
+nsolver = NonlinearVariationalSolver(nprob, solver_parameters=sparameters_exact)
 
 # start with these initial guesses
 un.assign(u0)
@@ -206,7 +218,7 @@ thetan_pert.assign(thetan - theta0)
 file_out.write(un, rhon_pert, thetan_pert)
 
 dt = 8.
-dumpt = 800.
+dumpt = 8.
 tdump = 0.
 dT.assign(dt)
 tmax = 30000.
