@@ -1,3 +1,7 @@
+from ufl import TestFunction, TestFunctions, TrialFunctions
+from firedrake import *
+
+
 class Parameters:
     N = 0.01  # Brunt-Vaisala frequency (1/s)
     cp = 1004.5  # SHC of dry air at const. pressure (J/kg/K)
@@ -39,3 +43,47 @@ def thermodynamics_pi(parameters, rho, theta_v):
     R_d = parameters.R_d
 
     return (rho * R_d * theta_v / p_0) ** (kappa / (1 - kappa))
+
+
+def apply_BC(u0, V, T):
+
+    """
+    apply boundary condition u dot n = 0 to the initial velocity
+    in the velocity FEM space V, where V is  the new broken space and
+    T the trace space,
+    project by solving the according PDE
+    """
+
+    W = V*T
+    w, mu = TestFunctions(W)
+    u, lambdar = TrialFunctions(W)
+    n = FacetNormal(V.mesh)
+
+    a = (inner(w,u)*dx - inner(w,u0)*dx 
+         + jump(w,n)*lambdar('+')*dS_h
+         + inner(w, n)*lambdar*ds_tb
+         + jump(u,n)*mu('+')*dS_h
+         + inner(u, n)*mu*ds_tb
+        )
+
+    sparameters_exact = {"mat_type": "aij",
+                   'snes_monitor': None,
+                   #'snes_stol': 1e-50,
+                   #'snes_view': None,
+                   #'snes_type' : 'ksponly',
+                   'ksp_monitor_true_residual': None,
+                   'snes_converged_reason': None,
+                   'ksp_converged_reason': None,
+                   "ksp_type" : "preonly",
+                   "pc_type" : "lu",
+                   "pc_factor_mat_solver_type": "mumps"}
+
+    problem = LinearVariationalProblem(a, u)
+    solver = LinearVariationalSolver(problem, solver_parameters=sparameters_exact)
+
+    solver.solve()
+
+    return u
+
+
+

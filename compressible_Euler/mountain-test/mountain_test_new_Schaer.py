@@ -180,8 +180,27 @@ sparameters_mg = {
         "mg_coarse_assembled_pc_factor_mat_solver_type": "mumps",
     }
 
+sparameters_LS = {
+        "snes_monitor": None,
+        "snes_converged_reason":None,
+        "snes_stol": 1e-50,
+        "mat_type": "aij",
+        "ksp_type": "gmres",
+        "ksp_monitor_true_residual": None,
+        "ksp_converged_reason": None,
+        "ksp_atol": 1e-8,
+        "ksp_rtol": 1e-8,
+        "ksp_max_it": 50,
+        "pc_type": "python",
+        'pc_python_type': 'firedrake.ASMStarPC',
+        "pc_star_sub_pc_type": "lu",
+        'pc_star_dims': '0',
+        'pc_star_sub_pc_factor_mat_solver_type' : 'mumps',
+    }
+
 sparameters_exact = { "mat_type": "aij",
                    'snes_monitor': None,
+                   'snes_stol': 1e-50,
                    #'snes_view': None,
                    #'snes_type' : 'ksponly',
                    'ksp_monitor_true_residual': None,
@@ -216,9 +235,8 @@ rhon_pert.assign(rhon - rho0)
 thetan_pert.assign(thetan - theta0)
 
 file_out.write(un, rhon_pert, thetan_pert)
-
 dt = 8.
-dumpt = 8.
+dumpt = 80.
 tdump = 0.
 dT.assign(dt)
 tmax = 30000.
