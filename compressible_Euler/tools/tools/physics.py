@@ -1,4 +1,4 @@
-from ufl import TestFunction, TestFunctions, TrialFunctions
+from ufl import TestFunctions
 from firedrake import *
 
 
@@ -45,7 +45,7 @@ def thermodynamics_pi(parameters, rho, theta_v):
     return (rho * R_d * theta_v / p_0) ** (kappa / (1 - kappa))
 
 
-def apply_BC(u0, V, T):
+def apply_BC_def_mesh(u0, V, T):
 
     """
     apply boundary condition u dot n = 0 to the initial velocity
@@ -56,8 +56,9 @@ def apply_BC(u0, V, T):
 
     W = V*T
     w, mu = TestFunctions(W)
-    u, lambdar = TrialFunctions(W)
-    n = FacetNormal(V.mesh)
+    U = Function(W)
+    u, lambdar = split(U)
+    n = FacetNormal(V.mesh())
 
     a = (inner(w,u)*dx - inner(w,u0)*dx 
          + jump(w,n)*lambdar('+')*dS_h
@@ -65,7 +66,7 @@ def apply_BC(u0, V, T):
          + jump(u,n)*mu('+')*dS_h
          + inner(u, n)*mu*ds_tb
         )
-
+    L = 0
     sparameters_exact = {"mat_type": "aij",
                    'snes_monitor': None,
                    #'snes_stol': 1e-50,
@@ -78,12 +79,9 @@ def apply_BC(u0, V, T):
                    "pc_type" : "lu",
                    "pc_factor_mat_solver_type": "mumps"}
 
-    problem = LinearVariationalProblem(a, u)
-    solver = LinearVariationalSolver(problem, solver_parameters=sparameters_exact)
+    problem = NonlinearVariationalProblem(a, U)
+    solver = NonlinearVariationalSolver(problem, solver_parameters=sparameters_exact)
 
     solver.solve()
 
-    return u
-
-
-
+    return U
