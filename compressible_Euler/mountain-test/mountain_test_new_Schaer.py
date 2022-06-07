@@ -39,8 +39,8 @@ new_coords = Function(Vc).interpolate(xexpr)
 mesh = Mesh(new_coords)
 
 # set up fem spaces
-vertical_degree = 0
-horizontal_degree = 0
+vertical_degree = 1
+horizontal_degree = 1
 
 V0, _, Vp, Vt, Vtr = build_spaces(mesh, vertical_degree, horizontal_degree)
 W = V0*Vp*Vt*Vtr
