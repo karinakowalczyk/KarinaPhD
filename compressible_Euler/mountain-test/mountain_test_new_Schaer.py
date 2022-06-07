@@ -40,7 +40,7 @@ mesh = Mesh(new_coords)
 
 
 # set up fem spaces
-V0, _, Vp, Vt, Vtr = build_spaces(mesh, vertical_degree=1, horizontal_degree=1)
+V0, _, Vp, Vt, Vtr = build_spaces(mesh, vertical_degree=0, horizontal_degree=0)
 W = V0*Vp*Vt*Vtr
 
 # initialise background temperature
