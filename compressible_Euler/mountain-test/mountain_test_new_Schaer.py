@@ -38,9 +38,11 @@ xexpr = as_vector([x, z + ((H-z)/H)*zs])
 new_coords = Function(Vc).interpolate(xexpr)
 mesh = Mesh(new_coords)
 
-
 # set up fem spaces
-V0, _, Vp, Vt, Vtr = build_spaces(mesh, vertical_degree=0, horizontal_degree=0)
+vertical_degree = 0
+horizontal_degree = 0
+
+V0, _, Vp, Vt, Vtr = build_spaces(mesh, vertical_degree, horizontal_degree)
 W = V0*Vp*Vt*Vtr
 
 # initialise background temperature
@@ -57,7 +59,8 @@ Pi = Function(Vp)
 rho_b = Function(Vp)
 lambdar_b = Function(Vtr)
 
-compressible_hydrostatic_balance_with_correct_pi_top(mesh, parameters, theta_b, rho_b, lambdar_b, Pi)
+compressible_hydrostatic_balance_with_correct_pi_top(mesh, parameters, theta_b, rho_b, lambdar_b, Pi, 
+                                                     vertical_degree=vertical_degree, horizontal_degree=horizontal_degree)
 
 
 # initialise functions for full Euler solver
