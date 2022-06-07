@@ -63,7 +63,10 @@ compressible_hydrostatic_balance_with_correct_pi_top(mesh, parameters, theta_b, 
 # initialise functions for full Euler solver
 theta0 = Function(Vt, name="theta0").interpolate(theta_b)
 rho0 = Function(Vp, name="rho0").interpolate(rho_b)  # where rho_b solves the hydrostatic balance eq.
-u0 = Function(V0, name="u0").project(as_vector([10.0, 0.0]))
+u0 = as_vector([10.0, 0.0])
+U0_bc = apply_BC_def_mesh(u0, V0, Vtr)
+u0_bc, _ = U0_bc.split()
+
 lambdar0 = Function(Vtr, name="lambdar0").assign(lambdar_b)  # we use lambda from hydrostatic solve as initial guess
 
 
@@ -214,7 +217,7 @@ sparameters_exact = { "mat_type": "aij",
 nsolver = NonlinearVariationalSolver(nprob, solver_parameters=sparameters_exact)
 
 # start with these initial guesses
-un.assign(u0)
+un.assign(u0_bc)
 rhon.assign(rho0)
 thetan.assign(theta0)
 lambdarn.assign(lambdar0)
