@@ -12,7 +12,7 @@ class Parameters:
     g = 9.80665
 
 
-def thermodynamics_rho(parameters, theta_v, pi):
+def thermodynamics_rho(theta_v, pi):
     """
     Returns an expression for the dry density rho in kg / m^3
     from the (virtual) potential temperature and Exner pressure.
@@ -22,13 +22,13 @@ def thermodynamics_rho(parameters, theta_v, pi):
     :arg pi: the Exner pressure.
     """
 
-    kappa = parameters.kappa
-    p_0 = parameters.p_0
-    R_d = parameters.R_d
+    kappa = Parameters.kappa
+    p_0 = Parameters.p_0
+    R_d = Parameters.R_d
 
     return p_0 * pi ** (1 / kappa - 1) / (R_d * theta_v)
 
-def thermodynamics_pi(parameters, rho, theta_v):
+def thermodynamics_pi(rho, theta_v):
     """
     Returns an expression for the Exner pressure.
 
@@ -38,9 +38,9 @@ def thermodynamics_pi(parameters, rho, theta_v):
                 potential temperature for wet air), in K.
     """
 
-    kappa = parameters.kappa
-    p_0 = parameters.p_0
-    R_d = parameters.R_d
+    kappa = Parameters.kappa
+    p_0 = Parameters.p_0
+    R_d = Parameters.R_d
 
     return (rho * R_d * theta_v / p_0) ** (kappa / (1 - kappa))
 

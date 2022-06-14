@@ -59,8 +59,9 @@ Pi = Function(Vp)
 rho_b = Function(Vp)
 lambdar_b = Function(Vtr)
 
-compressible_hydrostatic_balance_with_correct_pi_top(mesh, parameters, theta_b, rho_b, lambdar_b, Pi, 
-                                                     vertical_degree=vertical_degree, horizontal_degree=horizontal_degree)
+compressible_hydrostatic_balance_with_correct_pi_top(mesh, vertical_degree, horizontal_degree,
+                                                     parameters, theta_b, rho_b, lambdar_b, Pi, 
+                                                    )
 
 
 # initialise functions for full Euler solver
@@ -87,8 +88,8 @@ thetanph = 0.5*(thetan + thetanp1)
 lambdarnph = 0.5*(lambdarn + lambdarnp1)
 rhonph = 0.5*(rhon + rhonp1)
 
-Pin = thermodynamics_pi(parameters, rhon, thetan)
-Pinp1 = thermodynamics_pi(parameters, rhonp1, thetanp1)
+Pin = thermodynamics_pi(rhon, thetan)
+Pinp1 = thermodynamics_pi(rhonp1, thetanp1)
 Pinph = 0.5*(Pin + Pinp1)
 
 # functions for the upwinding terms
@@ -271,3 +272,127 @@ while t < tmax - 0.5*dt:
         # file_gw.write(un, rhon, thetan, lambdarn)
         # file2.write(un_pert, rhon_pert, thetan_pert)
         tdump -= dumpt
+
+    
+'''
+sparameters_exact = { "mat_type": "aij",
+                   'snes_monitor': None,
+                   'snes_stol': 1e-50,
+                   #'snes_view': None,
+                   #'snes_type' : 'ksponly',
+                   'ksp_monitor_true_residual': None,
+                   'snes_converged_reason': None,
+                   'ksp_converged_reason': None,
+                   "ksp_type" : "preonly",
+                   "pc_type" : "lu",
+                   "pc_factor_mat_solver_type": "mumps"
+                   }
+
+
+sparameters = {
+    "snes_converged_reason": None,
+    "mat_type": "matfree",
+    "ksp_type": "fgmres",
+    "ksp_converged_reason": None,
+    "ksp_atol": 1e-8,
+    "ksp_rtol": 1e-8,
+    "ksp_max_it": 400,
+    "pc_type": "python",
+    "pc_python_type": "firedrake.AssembledPC",
+    "assembled_pc_type": "python",
+    "assembled_pc_python_type": "firedrake.ASMStarPC",
+    "assembled_pc_star_construct_dim": 0,
+}
+
+#requires a mesh hierarchy
+mg_sparameters = {
+    "snes_converged_reason": None,
+    "mat_type": "matfree",
+    "ksp_type": "fgmres",
+    "ksp_converged_reason": None,
+    "ksp_atol": 1e-8,
+    "ksp_rtol": 1e-8,
+    "ksp_max_it": 400,
+    "pc_type": "mg",
+    "pc_mg_cycle_type": "v",
+    "pc_mg_type": "multiplicative",
+    "mg_levels_ksp_type": "gmres",
+    "mg_levels_ksp_max_it": 2,
+    "mg_levels_pc_type": "python",
+    "mg_levels_pc_python_type": "firedrake.AssembledPC",
+    "mg_levels_assembled_pc_type": "python",
+    "mg_levels_assembled_pc_python_type": "firedrake.ASMStarPC",
+    "mg_levels_assmbled_pc_star_construct_dim": 0,
+    "mg_coarse_pc_type": "python",
+    "mg_coarse_pc_python_type": "firedrake.AssembledPC",
+    "mg_coarse_assembled_pc_type": "lu"
+}
+
+
+parameters = Parameters()
+g = parameters.g
+c_p = parameters.cp
+
+# build volume mesh
+L = 100000.
+H = 30000.  # Height position of the model top
+delx = 500
+delz = 300
+nlayers = H/delz  # horizontal layers
+columns = L/delx  # number of columns
+m = PeriodicIntervalMesh(columns, L)
+mesh = ExtrudedMesh(m, layers=nlayers, layer_height=delz)
+
+
+a = 5000.
+xc = L/2.
+x, z = SpatialCoordinate(mesh)
+
+
+hm = 250.
+hm = Constant(hm)
+lamb = 4000.
+zs = hm*exp(-((x-xc)/a)**2) * (cos(pi*(x-xc)/lamb))**2
+
+#Vc = mesh.coordinates.function_space()
+#f_mesh = Function(Vc).interpolate(as_vector([x,z + ((H-z)/H)*zs]) )
+#mesh.coordinates.assign(f_mesh)
+
+Vc = VectorFunctionSpace(mesh, "DG", 2)
+xexpr = as_vector([x, z + ((H-z)/H)*zs])
+new_coords = Function(Vc).interpolate(xexpr)
+mesh = Mesh(new_coords)
+#mesh = ext_mesh
+
+# set up fem spaces
+vertical_degree = 1
+horizontal_degree = 1
+
+# initialise background temperature
+# N^2 = (g/theta)dtheta/dz => dtheta/dz = theta N^2g => theta=theta_0exp(N^2gz)
+Tsurf = 288.
+N = parameters.N
+x, z = SpatialCoordinate(mesh)
+thetab = Tsurf*exp(N**2*z/g)
+
+
+u0 = as_vector([10., 0.])
+Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
+
+Problem.H = H # edit later in class
+Problem.u0 = u0
+Problem.dT = Constant(8.)
+Problem.solver_params = sparameters_exact
+Problem.path_out = "../../Results/compEuler/mountain-Schar/mountain_Schar_zero height"
+Problem.thetab = thetab
+Problem.theta_init_pert = 0
+Problem.sponge_fct = True
+
+#Problem.initilise_rho_lambdar_hydr_balance
+
+dt = 8.
+tmax = 15000.
+dumpt = 8.
+
+Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt)
+'''

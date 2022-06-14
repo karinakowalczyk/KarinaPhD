@@ -2,12 +2,12 @@ from firedrake import *
 from .new_spaces import build_spaces
 from .physics import *
 
-def compressible_hydrostatic_balance(mesh, parameters, theta0, rho0, lambdar0, pi0=None,
+def compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
+                                     parameters, theta0, rho0, lambdar0, 
+                                     pi0=None,
                                      top=False, pi_boundary=Constant(1.0),
                                      water_t=None,
                                      solve_for_rho=False,
-                                     horizontal_degree=1,
-                                     vertical_degree=1,
                                      params=None):
     """
     Compute a hydrostatically balanced density given a potential temperature
@@ -124,14 +124,14 @@ def compressible_hydrostatic_balance(mesh, parameters, theta0, rho0, lambdar0, p
     if solve_for_rho:
         w1 = Function(W)
         v, rho, lambdar = w1.split()
-        rho.interpolate(thermodynamics_rho(parameters, theta0, Pi))
+        rho.interpolate(thermodynamics_rho(theta0, Pi))
         print("rho max and min before", rho.dat.data.max(), rho.dat.data.min())
 
         v, rho, lambdar = split(w1)
 
 
         dv, dpi, gammar = TestFunctions(W)
-        pi = thermodynamics_pi(parameters, rho, theta0)
+        pi = thermodynamics_pi(rho, theta0)
         F = (
             (cp*inner(v, dv) - cp*div(dv*theta)*pi)*dx
             + cp * inner(theta * dv, n) * lambdar * vmeasure
@@ -155,7 +155,7 @@ def compressible_hydrostatic_balance(mesh, parameters, theta0, rho0, lambdar0, p
         rho0.assign(rho_)
         print("rho max", rho0.dat.data.max())
     else:
-        rho0.interpolate(thermodynamics_rho(parameters, theta0, Pi))
+        rho0.interpolate(thermodynamics_rho(theta0, Pi))
     lambdar0.assign(lambdar)
 
 
@@ -174,8 +174,8 @@ def applyBC(u):
     bc.apply(u)
 
 
-def compressible_hydrostatic_balance_with_correct_pi_top(mesh, parameters, theta_b, rho_b, lambdar_b, Pi=None,
-                                                         vertical_degree=1, horizontal_degree=1):
+def compressible_hydrostatic_balance_with_correct_pi_top(mesh, vertical_degree, horizontal_degree,
+                                                         parameters, theta_b, rho_b, lambdar_b, Pi=None):
 
     
     ## specify solver parameters for the hydrostatic balance
@@ -192,18 +192,19 @@ def compressible_hydrostatic_balance_with_correct_pi_top(mesh, parameters, theta
                     "pc_sc_eliminate_fields": "0,1"}
     
     
-    compressible_hydrostatic_balance(mesh, parameters, theta_b, rho_b, lambdar_b, Pi,
-                                 top=True, pi_boundary=0.5,
-                                 vertical_degree=vertical_degree, horizontal_degree=horizontal_degree,
-                                 params=piparamsSCPC)
+    compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
+                                     parameters, theta_b, rho_b, lambdar_b,
+                                     Pi, top=True, pi_boundary=0.5,
+                                     params=piparamsSCPC)
 
 
 
     # solve with the correct pressure on the top boundary
     p0 = minimum(Pi)
 
-    compressible_hydrostatic_balance(mesh, parameters, theta_b, rho_b, lambdar_b, Pi,
-                                    top=True, vertical_degree=vertical_degree, horizontal_degree=horizontal_degree, params=piparamsSCPC)
+    compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
+                                     parameters, theta_b, rho_b, lambdar_b,
+                                     Pi, top=True, params=piparamsSCPC)
     p1 = minimum(Pi)
     alpha = 2.*(p1-p0)
     beta = p1-alpha
@@ -212,8 +213,8 @@ def compressible_hydrostatic_balance_with_correct_pi_top(mesh, parameters, theta
     print("SOLVE FOR RHO NOW")
 
     #rho_b to be used later as initial guess for solving Euler equations
-    compressible_hydrostatic_balance(mesh, parameters, theta_b, rho_b, lambdar_b, Pi,
-                                        top=True, pi_boundary=pi_top, solve_for_rho=True,
-                                        vertical_degree=vertical_degree, horizontal_degree=horizontal_degree,
-                                        params=piparamsSCPC)
+    compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree, 
+                                     parameters, theta_b, rho_b, lambdar_b,
+                                     Pi, top=True, pi_boundary=pi_top, solve_for_rho=True,
+                                     params=piparamsSCPC)
 
