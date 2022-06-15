@@ -1,5 +1,6 @@
 from firedrake import *
 from tools import *
+from petsc4py import PETSc
 
 
 '''
@@ -281,7 +282,7 @@ sparameters_exact = { "mat_type": "aij",
 # multigrid solver
 sparameters_mg = {
         "snes_monitor": None,
-        "snes_stol": 1e-50,
+        "snes_stol": 1e-10,
         "mat_type": "aij",
         "ksp_type": "fgmres",
         "ksp_monitor_true_residual": None,
@@ -352,8 +353,8 @@ hm = 1.
 zs = hm*a**2/((x-xc)**2 + a**2)
 xexpr = as_vector([x, z + ((H-z)/H)*zs])
 new_coords = Function(Vc).interpolate(xexpr)
-#mesh = Mesh(new_coords)
-mesh = ext_mesh
+mesh = Mesh(new_coords)
+#mesh = ext_mesh
 
 # set up fem spaces
 vertical_degree=1
