@@ -281,6 +281,7 @@ sparameters_exact = { "mat_type": "aij",
 # multigrid solver
 sparameters_mg = {
         "snes_monitor": None,
+        "snes_stol": 1e-50,
         "mat_type": "aij",
         "ksp_type": "fgmres",
         "ksp_monitor_true_residual": None,
