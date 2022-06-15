@@ -87,9 +87,9 @@ class compressibleEulerEquations:
                     + self.cp*inner(thetanph*w, self.n)*lambdarnp1*(ds_t + ds_b)
                     + self.cp*jump(thetanph*w, self.n)*(0.5*(Pinph('+') + Pinph('-')))*dS_v
                     # + c_p * inner(thetanph * w, n) * Pinph * (ds_v)
+                    + self.g * inner(w, self.zvec)*dx)
                     + gammar('+')*jump(unph, self.n)*dS_h
                     + gammar*inner(unph, self.n)*(ds_t + ds_b)
-                    + self.g * inner(w, self.zvec)*dx)
                     )
 
 

@@ -321,6 +321,8 @@ sparameters = {
 }
 
 
+
+
 dT = Constant(1)  # to be set later
 parameters = Parameters()
 g = parameters.g
@@ -349,8 +351,8 @@ hm = 1.
 zs = hm*a**2/((x-xc)**2 + a**2)
 xexpr = as_vector([x, z + ((H-z)/H)*zs])
 new_coords = Function(Vc).interpolate(xexpr)
-mesh = Mesh(new_coords)
-
+#mesh = Mesh(new_coords)
+mesh = ext_mesh
 
 # set up fem spaces
 vertical_degree=1

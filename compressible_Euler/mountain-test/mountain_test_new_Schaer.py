@@ -7,7 +7,7 @@ import numpy as np
     without making use of gusto
 '''
 
-
+'''
 # set up mesh and parameters for main computations
 dT = Constant(1)  # to be set later
 parameters = Parameters()
@@ -35,8 +35,8 @@ hm = 250.
 lamb = 4000.
 zs = hm*exp(-((x-xc)/a)**2) * (cos(pi*(x-xc)/lamb))**2
 xexpr = as_vector([x, z + ((H-z)/H)*zs])
-new_coords = Function(Vc).interpolate(xexpr)
-mesh = Mesh(new_coords)
+#new_coords = Function(Vc).interpolate(xexpr)
+#mesh = Mesh(new_coords)
 
 # set up fem spaces
 vertical_degree = 1
@@ -275,6 +275,7 @@ while t < tmax - 0.5*dt:
 
     
 '''
+
 sparameters_exact = { "mat_type": "aij",
                    'snes_monitor': None,
                    'snes_stol': 1e-50,
@@ -361,7 +362,7 @@ zs = hm*exp(-((x-xc)/a)**2) * (cos(pi*(x-xc)/lamb))**2
 Vc = VectorFunctionSpace(mesh, "DG", 2)
 xexpr = as_vector([x, z + ((H-z)/H)*zs])
 new_coords = Function(Vc).interpolate(xexpr)
-mesh = Mesh(new_coords)
+#mesh = Mesh(new_coords)
 #mesh = ext_mesh
 
 # set up fem spaces
@@ -391,8 +392,7 @@ Problem.sponge_fct = True
 #Problem.initilise_rho_lambdar_hydr_balance
 
 dt = 8.
-tmax = 15000.
+tmax = 40.
 dumpt = 8.
 
 Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt)
-'''
