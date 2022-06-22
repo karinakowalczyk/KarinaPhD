@@ -76,7 +76,8 @@ class compressibleEulerEquations:
 
         def uadv_eq(w):
             return(-inner(perp(grad(inner(w, perp(unph)))), unph)*dx
-                - inner(jump(inner(w, perp(unph)), self.n), perp_u_upwind(unph))*(dS)
+                - inner(jump(inner(w, perp(unph)), self.n), perp(unph("+")))*(dS_v)
+                - inner(jump(inner(w, perp(unph)), self.n), perp(unph("+")))*(dS_h)
                 #- inner(inner(w, perp(unph))* self.n, unph) * ( ds_t + ds_b )
                 - 0.5 * inner(unph, unph) * div(w) * dx
                 # + 0.5 * inner(u_upwind(unph), u_upwind(unph)) * jump(w, n) * dS_h
@@ -139,10 +140,10 @@ class compressibleEulerEquations:
         theta0 = Function(self.Vt, name="theta0").interpolate(self.thetab + self.theta_init_pert)
         self.thetab = Function(self.Vt).interpolate(self.thetab)
         self.rho0 = Function(self.Vp, name="rho0").interpolate(self.rho0)  # where rho_b solves the hydrostatic balance eq.
-        u0 = Function(self.V0, name="u0").project(self.u0)
-        #U0_bc = apply_BC_def_mesh(self.u0, self.V0, self.Vtr)
-        #u0_bc, _ = U0_bc.split()
-        #u0 = Function(self.V0, name="u0").project(u0_bc)
+        #u0 = Function(self.V0, name="u0").project(self.u0)
+        U0_bc = apply_BC_def_mesh(self.u0, self.V0, self.Vtr)
+        u0_bc, _ = U0_bc.split()
+        u0 = Function(self.V0, name="u0").project(u0_bc)
 
         #self.lambdar0 = Function(self.Vtr, name="lambdar0").assign(self.lambdar0)
 

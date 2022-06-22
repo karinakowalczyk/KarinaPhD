@@ -329,7 +329,54 @@ mg_sparameters = {
     "mg_coarse_assembled_pc_type": "lu"
 }
 
+sparameters_vanka = {
+        "snes_monitor": None,
+        "snes_stol": 1e-8,
+        "snes_converged_reason" : None,
+        "mat_type": "aij",
+        "ksp_type": "gmres",
+        "ksp_monitor_true_residual": None,
+        "ksp_converged_reason": None,
+        "ksp_atol": 1e-8,
+        "ksp_rtol": 1e-8,
+        "ksp_max_it": 400,
+        #"mg_levels_ksp_type": "gmres",
+        #"mg_levels_ksp_max_it": 3,
+        "pc_type": "python",
+        "pc_python_type": "firedrake.AssembledPC",
+        "assembled_pc_type": "python",
+        "assembled_pc_python_type": "firedrake.ASMVankaPC",
+        "assembled_pc_vanka_construct_dim": 0,
+        "assembled_pc_vanka_sub_sub_pc_type": "lu",   # but this is actually the default.
+        "assembled_pc_vanka_sub_sub_pc_factor_mat_solver_type" : 'mumps',
+    }
 
+sparameters_mg = {
+        "snes_monitor": None,
+        "snes_stol": 1e-8,
+        "snes_converged_reason" : None,
+        "mat_type": "aij",
+        "ksp_type": "fgmres",
+        "ksp_monitor_true_residual": None,
+        "ksp_converged_reason": None,
+        "ksp_atol": 1e-8,
+        "ksp_rtol": 1e-8,
+        "ksp_max_it": 400,
+        "pc_type": "mg",
+        "pc_mg_cycle_type": "v",
+        "pc_mg_type": "multiplicative",
+        "mg_levels_ksp_type": "gmres",
+        "mg_levels_ksp_max_it": 3,
+        "mg_levels_pc_type": "python",
+        'mg_levels_pc_python_type': 'firedrake.ASMStarPC',
+        "mg_levels_pc_star_sub_pc_type": "lu",
+        'mg_levels_pc_star_construct_dim': '0',
+        'mg_levels_pc_star_sub_pc_factor_mat_solver_type' : 'mumps',
+        "mg_coarse_pc_type": "python",
+        "mg_coarse_pc_python_type": "firedrake.AssembledPC",
+        "mg_coarse_assembled_pc_type": "lu",
+        "mg_coarse_assembled_pc_factor_mat_solver_type": "mumps",
+    }
 parameters = Parameters()
 g = parameters.g
 c_p = parameters.cp
@@ -355,9 +402,9 @@ hm = Constant(hm)
 lamb = 4000.
 zs = hm*exp(-((x-xc)/a)**2) * (cos(pi*(x-xc)/lamb))**2
 
-#Vc = mesh.coordinates.function_space()
-#f_mesh = Function(Vc).interpolate(as_vector([x,z + ((H-z)/H)*zs]) )
-#mesh.coordinates.assign(f_mesh)
+Vc = mesh.coordinates.function_space()
+f_mesh = Function(Vc).interpolate(as_vector([x,z + ((H-z)/H)*zs]) )
+mesh.coordinates.assign(f_mesh)
 
 Vc = VectorFunctionSpace(mesh, "DG", 2)
 xexpr = as_vector([x, z + ((H-z)/H)*zs])
@@ -383,7 +430,7 @@ Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
 Problem.H = H # edit later in class
 Problem.u0 = u0
 Problem.dT = Constant(8.)
-Problem.solver_params = sparameters_exact
+Problem.solver_params = sparameters_mg
 Problem.path_out = "../../Results/compEuler/mountain-Schar/mountain_Schar_zero height"
 Problem.thetab = thetab
 Problem.theta_init_pert = 0
@@ -392,7 +439,7 @@ Problem.sponge_fct = True
 #Problem.initilise_rho_lambdar_hydr_balance
 
 dt = 8.
-tmax = 40.
+tmax = 4000.
 dumpt = 8.
 
 Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt)

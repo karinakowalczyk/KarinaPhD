@@ -104,18 +104,15 @@ def pi_eqn(q):
 def u_eqn(w, gammar):
     return (
         fd.inner(w, unp1 - un)*fd.dx
-
-
         - dT*fd.inner(fd.grad(w), fd.outer(unph, Ubar))*fd.dx
-
-        +dT*fd.dot(fd.jump(w), unn('+')*unph('+')
+        + dT*fd.dot(fd.jump(w), unn('+')*unph('+')
                          - unn('-')*unph('-'))*(fd.dS_v + fd.dS_h)
 
         + dT*(fd.jump(unp1, n=n) * gammar('+') * (fd.dS_h) + fd.jump(w, n=n) * lamdanp1('+') * (fd.dS_h))
         + dT*(fd.inner(unp1, n) * gammar * fd.ds_tb + fd.inner(w, n) * lamdanp1 * (fd.ds_tb))
 
         -dT*fd.div(w)*Pinph*fd.dx - dT*fd.inner(w, k)*bnph*fd.dx
-        )
+    )
 
 w, phi, q, gammar = fd.TestFunctions(W)
 gamma = fd.Constant(10000.0)

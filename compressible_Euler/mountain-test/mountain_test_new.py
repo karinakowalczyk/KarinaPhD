@@ -132,10 +132,10 @@ c_p = parameters.cp
 
 
 # set mesh parameters
-H = 35000.  # Height position of the model top
-L = 144000.
-delx = 400*2
-delz = 250*2
+L = 100000.
+H = 30000.  # Height position of the model top
+delx = 500*2
+delz = 300*2
 nlayers = H/delz  # horizontal layers
 columns = L/delx  # number of columns
 
