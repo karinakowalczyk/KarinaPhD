@@ -388,7 +388,7 @@ delx = 500
 delz = 300
 nlayers = H/delz  # horizontal layers
 columns = L/delx  # number of columns
-distribution_parameters = {"partition": True, "overlap_type": (fd.DistributedMeshOverlapType.VERTEX, 2)}
+distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
 m = PeriodicIntervalMesh(columns, L, distribution_parameters=distribution_parameters)
 mesh = ExtrudedMesh(m, layers=nlayers, layer_height=delz)
 
