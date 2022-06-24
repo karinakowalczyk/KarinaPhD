@@ -289,6 +289,28 @@ sparameters_exact = { "mat_type": "aij",
                    "pc_factor_mat_solver_type": "mumps"
                    }
 
+sparameters_star = {
+        "snes_monitor": None,
+        "snes_stol": 1e-50,
+        "snes_converged_reason" : None,
+        "mat_type": "aij",
+        "ksp_type": "fgmres",
+        "ksp_monitor_true_residual": None,
+        "ksp_converged_reason": None,
+        "ksp_atol": 1e-8,
+        "ksp_rtol": 1e-8,
+        "ksp_max_it": 400,
+        #"mg_levels_ksp_type": "gmres",
+        #"mg_levels_ksp_max_it": 3,
+        "pc_type": "python",
+        "pc_python_type": "firedrake.AssembledPC",
+        "assembled_pc_type": "python",
+        "assembled_pc_python_type": "firedrake.ASMStarPC",
+        "assembled_pc_star_construct_dim": 0,
+        "assembled_pc_star_sub_pc_type": "lu",   # but this is actually the default.
+        #"assembled_pc_star_sub_pc_factor_mat_solver_type" : 'mumps',
+        #"assembled_pc_star_sub_pc_factor_nonzeros_along_diagonal": 1e-8
+    }
 
 sparameters = {
     "snes_converged_reason": None,
@@ -328,7 +350,7 @@ mg_sparameters = {
     "mg_coarse_pc_python_type": "firedrake.AssembledPC",
     "mg_coarse_assembled_pc_type": "lu"
 }
-
+'''
 sparameters_vanka = {
         "snes_monitor": None,
         "snes_stol": 1e-8,
@@ -350,6 +372,7 @@ sparameters_vanka = {
         "assembled_pc_vanka_sub_sub_pc_type": "lu",   # but this is actually the default.
         "assembled_pc_vanka_sub_sub_pc_factor_mat_solver_type" : 'mumps',
     }
+    '''
 
 sparameters_mg = {
         "snes_monitor": None,
@@ -359,7 +382,7 @@ sparameters_mg = {
         "ksp_type": "fgmres",
         "ksp_monitor_true_residual": None,
         "ksp_converged_reason": None,
-        "ksp_view" : None,
+        #"ksp_view" : None,
         "ksp_atol": 1e-8,
         "ksp_rtol": 1e-8,
         "ksp_max_it": 400,
@@ -379,6 +402,25 @@ sparameters_mg = {
         "mg_coarse_assembled_pc_type": "lu",
         "mg_coarse_assembled_pc_factor_mat_solver_type": "mumps",
     }
+sparameters_vanka = {
+    "snes_converged_reason": None,
+    "snes_monitor": None,
+    "mat_type": "matfree",
+    "ksp_type": "gmres",
+    "ksp_converged_reason": None,
+    "ksp_monitor_true_residual": None,
+    "ksp_view" : None,
+    "ksp_atol": 1e-8,
+    "ksp_rtol": 1e-8,
+    "ksp_max_it": 400,
+    "pc_type": "python",
+    "pc_python_type": "firedrake.AssembledPC",
+    "assembled_pc_type": "python",
+    "assembled_pc_python_type": "firedrake.ASMVankaPC",
+    "assembled_pc_vanka_construct_dim": 0,
+    #"assembled_pc_vanka_sub_sub_pc_factor_mat_ordering_type": "rcm",
+    "assembled_pc_vanka_sub_sub_pc_factor_nonzeros_along_diagonal": 1e-8
+}
 parameters = Parameters()
 g = parameters.g
 c_p = parameters.cp
