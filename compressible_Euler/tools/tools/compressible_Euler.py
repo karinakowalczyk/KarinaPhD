@@ -67,10 +67,13 @@ class compressibleEulerEquations:
 
         #functions for the upwinding terms
         unph_mean = 0.5*(unph("+") + unph("-"))
-        unn = 0.5*(dot(unph, self.n) + abs(dot(unph, self.n)))  # used for the upwind-term
+
+        def unn(r):
+            return 0.5*(dot(unph_mean, self.n(r)) + abs(dot(unph_mean, self.n(r))))  # used for the upwind-term
        
         def Upwind(r):
           return 0.5*(sign(dot(unph_mean, self.n(r)))+1)
+
         perp_u_upwind = lambda q: Upwind('+')*perp(q('+')) + Upwind('-')*perp(q('-'))
         u_upwind = lambda q: Upwind('+')*q('+') + Upwind('-')*q('-')
 
@@ -83,8 +86,8 @@ class compressibleEulerEquations:
                 #- inner(inner(w, perp(unph))* self.n, unph) * ( ds_t + ds_b )
                 - 0.5 * inner(unph, unph) * div(w) * dx
                 # + 0.5 * inner(u_upwind(unph), u_upwind(unph)) * jump(w, n) * dS_h
-                +Constant(1e-50)*jump(unph,self.n)*jump(w,self.n)*dS_h
-                +Constant(1e-50)*inner(unph,self.n)*inner(w,self.n)*ds_tb
+                #+Constant(1e-50)*jump(unph,self.n)*jump(w,self.n)*dS_h
+                #+Constant(1e-50)*inner(unph,self.n)*inner(w,self.n)*ds_tb
                 )
 
         
