@@ -13,7 +13,7 @@ class compressibleEulerEquations:
         self.vertical_degree = vertical_degree
         self.horizontal_degree = horizontal_degree
         self.H = None
-        self.u0 = None
+        self.u0 = Constant(as_vector([0,0]))
         self. dT = Constant(5.)
         self.solver_params = None
         self.path_out = " "

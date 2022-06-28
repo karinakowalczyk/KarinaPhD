@@ -2,116 +2,14 @@ from firedrake import *
 from tools import *
 from petsc4py import PETSc
 
-
-
-solver_parameters={'snes_type': 'newtonls',
-                         'ksp_type': 'preonly',
-                         'pc_type': 'lu'}
-
-sparameters_exact = { 
-                   'snes_monitor': None,
-                   'snes_stol': 1e-50,
-                   #'snes_view': None,
-                   #'snes_type' : 'ksponly',
-                   'ksp_monitor_true_residual': None,
-                   "ksp_atol": 1e-20,
-                   'snes_converged_reason': None,
-                   'ksp_converged_reason': None,
-                   "ksp_type" : "preonly",
-                   "pc_type" : "lu",
-                   #"pc_factor_mat_solver_type": "mumps"
-                   }
-
-#requires a mesh hierarchy
-# multigrid solver
-sparameters_mg = {
-        "snes_monitor": None,
-        "snes_stol": 1e-8,
-        "snes_converged_reason" : None,
-        "mat_type": "aij",
-        "ksp_type": "fgmres",
-        "ksp_monitor_true_residual": None,
-        "ksp_converged_reason": None,
-        "ksp_atol": 1e-8,
-        "ksp_rtol": 1e-8,
-        "ksp_max_it": 400,
-        "pc_type": "mg",
-        "pc_mg_cycle_type": "v",
-        "pc_mg_type": "multiplicative",
-        "mg_levels_ksp_type": "gmres",
-        "mg_levels_ksp_max_it": 3,
-        "mg_levels_pc_type": "python",
-        'mg_levels_pc_python_type': 'firedrake.ASMStarPC',
-        "mg_levels_pc_star_sub_pc_type": "lu",
-        'mg_levels_pc_star_construct_dim': '0',
-        'mg_levels_pc_star_sub_pc_factor_mat_solver_type' : 'mumps',
-        "mg_coarse_pc_type": "python",
-        "mg_coarse_pc_python_type": "firedrake.AssembledPC",
-        "mg_coarse_assembled_pc_type": "lu",
-        "mg_coarse_assembled_pc_factor_mat_solver_type": "mumps",
-    }
-
-sparameters_vanka = {
-        "snes_monitor": None,
-        "snes_stol": 1e-8,
-        "snes_converged_reason" : None,
-        "mat_type": "aij",
-        "ksp_type": "fgmres",
-        "ksp_monitor_true_residual": None,
-        "ksp_converged_reason": None,
-        "ksp_atol": 1e-8,
-        "ksp_rtol": 1e-8,
-        "ksp_max_it": 400,
-        #"mg_levels_ksp_type": "gmres",
-        #"mg_levels_ksp_max_it": 3,
-        "pc_type": "python",
-        "pc_python_type": "firedrake.AssembledPC",
-        "assembled_pc_type": "python",
-        "assembled_pc_python_type": "firedrake.ASMVankaPC",
-        "assembled_pc_vanka_construct_dim": 0,
-        "assembled_pc_vanka_sub_pc_type": "lu",   # but this is actually the default.
-        "assembled_pc_vanka_sub_pc_factor_mat_solver_type" : 'mumps',
-    }
-
 sparameters_star = {
-        "snes_monitor": None,
-        "snes_stol": 1e-50,
-        "snes_converged_reason" : None,
-        "mat_type": "aij",
-        "ksp_type": "fgmres",
-        "ksp_monitor_true_residual": None,
-        "ksp_converged_reason": None,
-        "ksp_atol": 1e-8,
-        "ksp_rtol": 1e-8,
-        "ksp_max_it": 400,
-        #"mg_levels_ksp_type": "gmres",
-        #"mg_levels_ksp_max_it": 3,
-        "pc_type": "python",
-        "pc_python_type": "firedrake.AssembledPC",
-        "assembled_pc_type": "python",
-        "assembled_pc_python_type": "firedrake.ASMStarPC",
-        "assembled_pc_star_construct_dim": 0,
-        "assembled_pc_star_sub_pc_type": "lu",   # but this is actually the default.
-        "assembled_pc_star_sub_pc_factor_mat_solver_type" : 'mumps',
-    }
-
-sparameters_test = {"snes_monitor": None,
-        "snes_stol": 1e-50,
-        'snes_type':"newtontrdc",
-        "snes_converged_reason" : None,
-        "mat_type": "aij",
-        "ksp_type" : "gmres",
-        "pc_type" : "ilu",
-        #"pc_factor_mat_solver_type": "mumps",
-        "ksp_monitor_true_residual": None,
-        "ksp_converged_reason": None,
-}
-
-
-sparameters = {
+    "snes_monitor": None,
+    "snes_stol": 1e-20,
+    "ksp_monitor_true_residual": None,
+    "ksp_converged_reason": None,
     "snes_converged_reason": None,
     "mat_type": "matfree",
-    "ksp_type": "fgmres",
+    "ksp_type": "gmres",
     "ksp_converged_reason": None,
     "ksp_atol": 1e-8,
     "ksp_rtol": 1e-8,
@@ -121,9 +19,11 @@ sparameters = {
     "assembled_pc_type": "python",
     "assembled_pc_python_type": "firedrake.ASMStarPC",
     "assembled_pc_star_construct_dim": 0,
-    "assembled_pc_star_factor_mat_solver_type":"mumps"
+    "assembled_pc_star_sub_pc_type": "lu",
+    'assembled_pc_star_sub_pc_factor_mat_solver_type' : 'mumps',
+    #"assembled_pc_star_sub_pc_factor_mat_ordering_type": "rcm",
+    #"assembled_pc_star_sub_pc_factor_nonzeros_along_diagonal": 1e-8,
 }
-
 
 dT = Constant(1)  # to be set later
 parameters = Parameters()
@@ -182,8 +82,8 @@ Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
 Problem.H = H # edit later in class
 Problem.u0 = u0
 Problem.dT = Constant(5.)
-Problem.solver_params = sparameters_mg
-Problem.path_out = "../../Results/compEuler/mountain-test-adv/mountain-adv"
+Problem.solver_params = sparameters_star
+Problem.path_out = "../../Results/compEuler/mountain-test/mountain"
 Problem.thetab = thetab
 Problem.theta_init_pert = 0
 Problem.sponge_fct = True
