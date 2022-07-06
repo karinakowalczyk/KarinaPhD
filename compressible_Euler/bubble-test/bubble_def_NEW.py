@@ -74,7 +74,8 @@ sparameters_star = {
     #"assembled_pc_star_sub_pc_factor_mat_ordering_type": "rcm",
     #"assembled_pc_star_sub_pc_factor_nonzeros_along_diagonal": 1e-8,
 }
-
+ 
+ 
 
 Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
 
