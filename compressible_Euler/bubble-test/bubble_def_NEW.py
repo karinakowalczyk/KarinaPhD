@@ -85,7 +85,7 @@ Problem.solver_params = sparameters_star
 Problem.path_out = "../../Results/compEuler/bubble-test/bubble"
 Problem.thetab = thetab
 Problem.theta_init_pert = thetab_pert
-Problem.sponge_fct = False
+Problem.sponge_fct = True
 
 #Problem.initilise_rho_lambdar_hydr_balance
 dt = 1.
