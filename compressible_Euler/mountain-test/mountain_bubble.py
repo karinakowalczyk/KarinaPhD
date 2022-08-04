@@ -133,31 +133,38 @@ new_coords = Function(Vc).interpolate(xexpr)
 # set up fem spaces
 vertical_degree = 1
 horizontal_degree = 1
-
 # initialise background temperature
 # N^2 = (g/theta)dtheta/dz => dtheta/dz = theta N^2g => theta=theta_0exp(N^2gz)
-Tsurf = 288.
+Tsurf = 300.
 N = parameters.N
 x, z = SpatialCoordinate(mesh)
-thetab = Tsurf*exp(N**2*z/g)
+thetab = Constant(Tsurf)
 
+# initialise functions for full Euler solver
+xc = L/2
+xr = 2000.
+zc = 2000.
+zr = 2000.
+
+Lr = sqrt(((x-xc)/xr)**2 + ((z-zc)/zr)**2)
+
+delT = conditional(Lr > 1., 0., 2*(cos(pi*Lr/2))**2)
+thetab_pert = delT
 
 u0 = as_vector([10., 0.])
 Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
 
 Problem.H = H # edit later in class
-Problem.u0 = u0
-Problem.dT = Constant(8.)
+#Problem.u0 = u0
+Problem.dT = Constant(2.)
 Problem.solver_params = sparameters_star
-Problem.path_out = "../../Results/compEuler/mountain-Schar/mountain_Schar"
+Problem.path_out = "../../Results/compEuler/mountain_bubble/mountain_bubble"
 Problem.thetab = thetab
-Problem.theta_init_pert = 0
+Problem.theta_init_pert = thetab_pert
 Problem.sponge_fct = True
 
-#Problem.initilise_rho_lambdar_hydr_balance
-
-dt = 8.
+dt = 2.
 tmax = 8000.
-dumpt = 8.
+dumpt = 2.
 
 Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt)
