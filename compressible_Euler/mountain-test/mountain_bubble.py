@@ -155,7 +155,7 @@ u0 = as_vector([10., 0.])
 Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
 
 Problem.H = H # edit later in class
-#Problem.u0 = u0
+Problem.u0 = u0
 Problem.dT = Constant(2.)
 Problem.solver_params = sparameters_star
 Problem.path_out = "../../Results/compEuler/mountain_bubble/mountain_bubble"
