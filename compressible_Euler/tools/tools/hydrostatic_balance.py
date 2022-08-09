@@ -1,5 +1,5 @@
 from firedrake import *
-from .new_spaces import build_spaces
+from .new_spaces import build_spaces, build_spaces_slice_3D
 from .physics import *
 
 def compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
@@ -8,7 +8,8 @@ def compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
                                      top=False, pi_boundary=Constant(1.0),
                                      water_t=None,
                                      solve_for_rho=False,
-                                     params=None):
+                                     params=None,
+                                     slice_3D = False):
     """
     Compute a hydrostatically balanced density given a potential temperature
     profile. By default, this uses a vertically-oriented hybridization
@@ -25,10 +26,12 @@ def compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
     """
 
     # Calculate hydrostatic Pi
-    #VDG = state.spaces("DG")
-    #Vv = state.spaces("Vv")
-    #Vtr= state.spaces("Trace")
-    _, Vv, Vp, Vt, Vtr = build_spaces(mesh, vertical_degree, horizontal_degree ) # arguments to be set in main function
+    
+    if slice_3D:
+        _, Vv, Vp, Vt, Vtr = build_spaces_slice_3D(mesh, vertical_degree, horizontal_degree )
+    else: 
+        _, Vv, Vp, Vt, Vtr = build_spaces(mesh, vertical_degree, horizontal_degree )
+    
     W = MixedFunctionSpace((Vv, Vp, Vtr))
     v, pi, lambdar = TrialFunctions(W)
     dv, dpi, gammar = TestFunctions(W)
@@ -175,7 +178,7 @@ def applyBC(u):
 
 
 def compressible_hydrostatic_balance_with_correct_pi_top(mesh, vertical_degree, horizontal_degree,
-                                                         parameters, theta_b, rho_b, lambdar_b, Pi=None):
+                                                         parameters, theta_b, rho_b, lambdar_b, Pi=None, slice_3D=False):
 
     
     ## specify solver parameters for the hydrostatic balance
@@ -195,7 +198,7 @@ def compressible_hydrostatic_balance_with_correct_pi_top(mesh, vertical_degree, 
     compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
                                      parameters, theta_b, rho_b, lambdar_b,
                                      Pi, top=True, pi_boundary=0.5,
-                                     params=piparamsSCPC)
+                                     params=piparamsSCPC, slice_3D=slice_3D)
 
 
 
@@ -204,7 +207,7 @@ def compressible_hydrostatic_balance_with_correct_pi_top(mesh, vertical_degree, 
 
     compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
                                      parameters, theta_b, rho_b, lambdar_b,
-                                     Pi, top=True, params=piparamsSCPC)
+                                     Pi, top=True, params=piparamsSCPC, slice_3D=slice_3D)
     p1 = minimum(Pi)
     alpha = 2.*(p1-p0)
     beta = p1-alpha
@@ -216,5 +219,5 @@ def compressible_hydrostatic_balance_with_correct_pi_top(mesh, vertical_degree, 
     compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree, 
                                      parameters, theta_b, rho_b, lambdar_b,
                                      Pi, top=True, pi_boundary=pi_top, solve_for_rho=True,
-                                     params=piparamsSCPC)
+                                     params=piparamsSCPC, slice_3D=slice_3D)
 

@@ -6,7 +6,7 @@ import numpy as np
 from petsc4py import PETSc
 class compressibleEulerEquations:
 
-    def __init__(self, mesh, vertical_degree=1, horizontal_degree=1):
+    def __init__(self, mesh, vertical_degree=1, horizontal_degree=1, slice_3D = False):
     
 
         self.mesh = mesh
@@ -21,12 +21,19 @@ class compressibleEulerEquations:
         self.theta_init_pert = 0
         self.sponge_fct = False
         self.Parameters = Parameters()
-
+        self.slice_3D = slice_3D
         self.n = FacetNormal(mesh)
         
-        self.zvec = as_vector([0, 1])
+        self.dim = self.mesh.topological_dimension()
+        zvec = [0.0] * self.dim
+        zvec[self.dim - 1] = 1.0
+        self.zvec = Constant(zvec)
+        #self.zvec = as_vector([0, 1])
 
-        self.V0, self.Vv, self.Vp, self.Vt, self.Vtr = build_spaces(self.mesh, self.vertical_degree, self.horizontal_degree)
+        if self.slice_3D:
+            self.V0, self.Vv, self.Vp, self.Vt, self.Vtr = build_spaces_slice_3D(self.mesh, self.vertical_degree, self.horizontal_degree)
+        else: 
+            self.V0, self.Vv, self.Vp, self.Vt, self.Vtr = build_spaces(self.mesh, self.vertical_degree, self.horizontal_degree)
 
         #self.V0, self.Vv, self.Vp, self.Vt, self.Vtr = build_spaces(self.mesh, self.vertical_degree, self.horizontal_degree),
         self.W = self.V0*self.Vp*self.Vt*self.Vtr
@@ -49,7 +56,7 @@ class compressibleEulerEquations:
         compressible_hydrostatic_balance_with_correct_pi_top(self.mesh, 
                                                                 self.vertical_degree, self.horizontal_degree,
                                                                 self.Parameters, 
-                                                                self.theta_b, self.rho0, self.lambdar0, self.Pi0)
+                                                                self.theta_b, self.rho0, self.lambdar0, self.Pi0, self.slice_3D)
         
         Un = Function(self.W)
         Unp1 = Function(self.W)
@@ -68,27 +75,46 @@ class compressibleEulerEquations:
         #functions for the upwinding terms
         unph_mean = 0.5*(unph("+") + unph("-"))
 
+        dS = dS_h + dS_v
+
         def unn(r):
             return 0.5*(dot(unph_mean, self.n(r)) + abs(dot(unph_mean, self.n(r))))  # used for the upwind-term
        
         def Upwind(r):
           return 0.5*(sign(dot(unph_mean, self.n(r)))+1)
 
-        perp_u_upwind = lambda q: Upwind('+')*perp(q('+')) + Upwind('-')*perp(q('-'))
-        u_upwind = lambda q: Upwind('+')*q('+') + Upwind('-')*q('-')
 
-        dS = dS_h + dS_v
+        if self.dim ==2:
+            perp_u_upwind = lambda q: Upwind('+')*perp(q('+')) + Upwind('-')*perp(q('-'))
+            u_upwind = lambda q: Upwind('+')*q('+') + Upwind('-')*q('-')
 
-        def uadv_eq(w):
-            return(-inner(perp(grad(inner(w, perp(unph)))), unph)*dx
-                - inner(jump(inner(w, perp(unph)), self.n), perp_u_upwind(unph))*(dS_v)
-                - inner(jump(inner(w, perp(unph)), self.n), perp_u_upwind(unph))*(dS_h)
-                #- inner(inner(w, perp(unph))* self.n, unph) * ( ds_t + ds_b )
-                - 0.5 * inner(unph, unph) * div(w) * dx
-                # + 0.5 * inner(u_upwind(unph), u_upwind(unph)) * jump(w, n) * dS_h
-                #+Constant(1e-50)*jump(unph,self.n)*jump(w,self.n)*dS_h
-                #+Constant(1e-50)*inner(unph,self.n)*inner(w,self.n)*ds_tb
-                )
+        
+            def uadv_eq(w):
+                return(-inner(perp(grad(inner(w, perp(unph)))), unph)*dx
+                    - inner(jump(inner(w, perp(unph)), self.n), perp_u_upwind(unph))*(dS_v)
+                    - inner(jump(inner(w, perp(unph)), self.n), perp_u_upwind(unph))*(dS_h)
+                    #- inner(inner(w, perp(unph))* self.n, unph) * ( ds_t + ds_b )
+                    - 0.5 * inner(unph, unph) * div(w) * dx
+                    # + 0.5 * inner(u_upwind(unph), u_upwind(unph)) * jump(w, n) * dS_h
+                    #+Constant(1e-50)*jump(unph,self.n)*jump(w,self.n)*dS_h
+                    #+Constant(1e-50)*inner(unph,self.n)*inner(w,self.n)*ds_tb
+                    )
+        elif self.dim ==3:
+
+            def both(u):
+                return 2*avg(u)
+
+            def uadv_eq(w):
+                return(inner(unph, curl(cross(unph, w)))*dx
+                - inner(Upwind('+')*unph('+') + Upwind('-')*unph('-'), 
+                        (cross(self.n, cross(unph, w)))('+') + (cross(self.n, cross(unph, w)))('-'))*dS
+                - 0.5 * inner(unph, unph) * div(w)*dx)
+            
+            def coriolis_term(w):
+                return f*inner(w, cross(self.zvec, unph))*dx
+  
+        else:
+            raise NotImplementedError
 
         
         def u_eqn(w, gammar):
@@ -132,10 +158,19 @@ class compressibleEulerEquations:
         # a = Constant(10000.0)
         eqn = u_eqn(w, gammar) + theta_eqn(chi) + rho_eqn(phi) # + gamma * rho_eqn(div(w))
 
+        if self.dim==3:
+            f = Constant(1.0e-4)
+            eqn += f*inner(w, cross(self.zvec, unph))*dx
+
         if self.sponge_fct:
             mubar = 0.3
             zc = self.H-10000.
-            _, z = SpatialCoordinate(self.mesh)
+            if self.dim==2:
+                _, z = SpatialCoordinate(self.mesh)
+            elif self.dim==3:
+                _, _, z = SpatialCoordinate(self.mesh)
+            else:
+                raise NotImplementedError
             mu_top = conditional(z <= zc, 0.0, mubar*sin((np.pi/2.)*(z-zc)/(self.H-zc))**2)
             mu = Function(self.Vp).interpolate(mu_top/self.dT)
             eqn += mu*inner(w, self.zvec)*inner(unph, self.zvec)*dx
