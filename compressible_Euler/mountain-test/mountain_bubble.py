@@ -99,8 +99,8 @@ g = parameters.g
 c_p = parameters.cp
 
 # build volume mesh
-L = 20000.
-H = 20000.  # Height position of the model top
+L = 100000.
+H = 30000.  # Height position of the model top
 delx = 200
 delz = 200
 nlayers = H/delz  # horizontal layers
@@ -139,8 +139,8 @@ thetab = Constant(Tsurf)
 # initialise functions for full Euler solver
 xc = L/2
 xr = 2000.
-zc = 2000.
-zr = 4500.
+zc = 6000.
+zr = 2000.
 
 Lr = sqrt(((x-xc)/xr)**2 + ((z-zc)/zr)**2)
 
