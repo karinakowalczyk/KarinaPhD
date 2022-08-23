@@ -99,10 +99,10 @@ g = parameters.g
 c_p = parameters.cp
 
 # build volume mesh
-L = 100000.
-H = 30000.  # Height position of the model top
-delx = 500
-delz = 300
+L = 20000.
+H = 20000.  # Height position of the model top
+delx = 200
+delz = 200
 nlayers = H/delz  # horizontal layers
 columns = L/delx  # number of columns
 distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
@@ -110,16 +110,12 @@ m = PeriodicIntervalMesh(columns, L, distribution_parameters=distribution_parame
 mesh = ExtrudedMesh(m, layers=nlayers, layer_height=delz)
 
 
-a = 5000.
+a = 1000.
 xc = L/2.
 x, z = SpatialCoordinate(mesh)
-
-
-hm = 250.
-hm = Constant(hm)
-lamb = 4000.
-zs = hm*exp(-((x-xc)/a)**2) * (cos(pi*(x-xc)/lamb))**2
-
+hm = 1000.
+zs = hm*a**2/((x-xc)**2 + a**2)
+xexpr = as_vector([x, z + ((H-z)/H)*zs])
 Vc = mesh.coordinates.function_space()
 f_mesh = Function(Vc).interpolate(as_vector([x,z + ((H-z)/H)*zs]) )
 mesh.coordinates.assign(f_mesh)
@@ -144,7 +140,7 @@ thetab = Constant(Tsurf)
 xc = L/2
 xr = 2000.
 zc = 2000.
-zr = 2000.
+zr = 4500.
 
 Lr = sqrt(((x-xc)/xr)**2 + ((z-zc)/zr)**2)
 
@@ -155,7 +151,7 @@ u0 = as_vector([10., 0.])
 Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
 
 Problem.H = H # edit later in class
-Problem.u0 = u0
+#Problem.u0 = u0
 Problem.dT = Constant(2.)
 Problem.solver_params = sparameters_star
 Problem.path_out = "../../Results/compEuler/mountain_bubble/mountain_bubble"
