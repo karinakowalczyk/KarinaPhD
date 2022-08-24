@@ -99,14 +99,14 @@ g = parameters.g
 c_p = parameters.cp
 
 # build volume mesh
-L = 100000.
-H = 30000.  # Height position of the model top
-delx = 200
-delz = 200
+L = 20000.
+H = 20000.  # Height position of the model top
+delx = 100
+delz = 100
 nlayers = H/delz  # horizontal layers
 columns = L/delx  # number of columns
 distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
-m = PeriodicIntervalMesh(columns, L, distribution_parameters=distribution_parameters)
+m = IntervalMesh(columns, L, distribution_parameters=distribution_parameters)
 mesh = ExtrudedMesh(m, layers=nlayers, layer_height=delz)
 
 
@@ -139,7 +139,7 @@ thetab = Constant(Tsurf)
 # initialise functions for full Euler solver
 xc = L/2
 xr = 2000.
-zc = 6000.
+zc = 4500.
 zr = 2000.
 
 Lr = sqrt(((x-xc)/xr)**2 + ((z-zc)/zr)**2)
@@ -148,7 +148,7 @@ delT = conditional(Lr > 1., 0., 2*(cos(pi*Lr/2))**2)
 thetab_pert = delT
 
 u0 = as_vector([10., 0.])
-Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
+Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree, mesh_periodic = False)
 
 Problem.H = H # edit later in class
 #Problem.u0 = u0
