@@ -4,9 +4,10 @@ from tools. new_spaces import *
 from tools.physics import *
 import numpy as np
 from petsc4py import PETSc
+
 class compressibleEulerEquations:
 
-    def __init__(self, mesh, vertical_degree=1, horizontal_degree=1, slice_3D = False):
+    def __init__(self, mesh, vertical_degree=1, horizontal_degree=1, slice_3D=False, mesh_periodic=True):
     
 
         self.mesh = mesh
@@ -23,6 +24,7 @@ class compressibleEulerEquations:
         self.Parameters = Parameters()
         self.slice_3D = slice_3D
         self.n = FacetNormal(mesh)
+        self.mesh_periodic = mesh_periodic
         
         self.dim = self.mesh.topological_dimension()
         zvec = [0.0] * self.dim
@@ -176,6 +178,11 @@ class compressibleEulerEquations:
             eqn += mu*inner(w, self.zvec)*inner(unph, self.zvec)*dx
 
         nprob = NonlinearVariationalProblem(eqn, Unp1)
+
+        if not self.mesh_periodic:
+            bc1 = DirichletBC(self.W.sub(0), 0., 1)
+            bc2 = DirichletBC(self.W.sub(0), 0., 2) 
+            nprob = NonlinearVariationalProblem(eqn, Unp1, bcs=[bc1,bc2])  
 
         self.solver = NonlinearVariationalSolver(nprob, solver_parameters=self.solver_params)
 
