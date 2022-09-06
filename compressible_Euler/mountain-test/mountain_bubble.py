@@ -160,7 +160,7 @@ Problem.theta_init_pert = thetab_pert
 Problem.sponge_fct = True
 
 dt = 2.
-tmax = 8000.
+tmax = 1000.
 dumpt = 2.
 
 Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt)
