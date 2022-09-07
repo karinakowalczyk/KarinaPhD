@@ -118,7 +118,7 @@ zs = hm*a**2/((x-xc)**2 + a**2)
 xexpr = as_vector([x, z + ((H-z)/H)*zs])
 Vc = mesh.coordinates.function_space()
 f_mesh = Function(Vc).interpolate(as_vector([x,z + ((H-z)/H)*zs]) )
-mesh.coordinates.assign(f_mesh)
+#mesh.coordinates.assign(f_mesh)
 
 Vc = VectorFunctionSpace(mesh, "DG", 2)
 xexpr = as_vector([x, z + ((H-z)/H)*zs])
@@ -154,7 +154,7 @@ Problem.H = H # edit later in class
 #Problem.u0 = u0
 Problem.dT = Constant(2.)
 Problem.solver_params = sparameters_star
-Problem.path_out = "../../Results/compEuler/mountain_bubble/mountain_bubble"
+Problem.path_out = "../../Results/compEuler/mountain_bubble_flat/mountain_bubble_flat"
 Problem.thetab = thetab
 Problem.theta_init_pert = thetab_pert
 Problem.sponge_fct = True
