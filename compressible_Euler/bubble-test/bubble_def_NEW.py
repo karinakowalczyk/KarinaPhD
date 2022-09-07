@@ -1,9 +1,16 @@
-from firedrake import *
-from tools import *
+from firedrake import (Constant, PeriodicIntervalMesh, ExtrudedMesh,
+                       SpatialCoordinate, Function, as_vector, Mesh,
+                       sqrt, conditional, cos, sin, pi
+                       )
+from tools import Parameters, compressibleEulerEquations
 
 '''
-    version of "mountain_non-hydrostatic in gusto for new velocity space
-    without making use of gusto
+rising bubble test case taken from
+    https://doi.org/10.1002/qj.603
+in the non-hydrostatic regime
+
+we add internal mesh deformations to test our
+new spaces
 '''
 
 # set up mesh and parameters for main computations
@@ -25,13 +32,8 @@ mesh = ExtrudedMesh(m, layers=nlayers, layer_height=H/nlayers)
 
 Vc = mesh.coordinates.function_space()
 x, y = SpatialCoordinate(mesh)
-new_coords = Function(Vc).interpolate(as_vector([x,y -(4/H**2) *(sin(2*pi*x/L))*((y-H/2)**2 - H**2/4)]  ))
+new_coords = Function(Vc).interpolate(as_vector([x, y - (4/H**2)*(sin(2*pi*x/L))*((y-H/2)**2 - H**2/4)]))
 mesh = Mesh(new_coords)
-
-H = Constant(H)
-
-vertical_degree = 1
-horizontal_degree = 1
 
 # initialise background temperature
 # N^2 = (g/theta)dtheta/dz => dtheta/dz = theta N^2g => theta=theta_0exp(N^2gz)
@@ -70,17 +72,18 @@ sparameters_star = {
     "assembled_pc_python_type": "firedrake.ASMStarPC",
     "assembled_pc_star_construct_dim": 0,
     "assembled_pc_star_sub_pc_type": "lu",
-    'assembled_pc_star_sub_pc_factor_mat_solver_type' : 'mumps',
-    #"assembled_pc_star_sub_pc_factor_mat_ordering_type": "rcm",
-    #"assembled_pc_star_sub_pc_factor_nonzeros_along_diagonal": 1e-8,
+    'assembled_pc_star_sub_pc_factor_mat_solver_type': 'mumps',
+    # "assembled_pc_star_sub_pc_factor_mat_ordering_type": "rcm",
+    # "assembled_pc_star_sub_pc_factor_nonzeros_along_diagonal": 1e-8,
 }
- 
- 
+
+vertical_degree = 1
+horizontal_degree = 1
 
 Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
 
-Problem.H = H # edit later in class
-#Problem.u0 = u0
+Problem.H = H  # edit later in class
+# Problem.u0 = u0
 Problem.dT = Constant(2.)
 Problem.solver_params = sparameters_star
 Problem.path_out = "../../Results/compEuler/bubble-test/bubble"
@@ -88,13 +91,10 @@ Problem.thetab = thetab
 Problem.theta_init_pert = thetab_pert
 Problem.sponge_fct = True
 
-#Problem.initilise_rho_lambdar_hydr_balance
 dt = 1.
 dumpt = 4.
 tdump = 0.
 dT.assign(dt)
 tmax = 2000.
 
-
 Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt)
-

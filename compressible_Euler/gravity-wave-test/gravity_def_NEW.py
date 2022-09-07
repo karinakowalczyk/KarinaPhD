@@ -1,12 +1,18 @@
-from firedrake import *
-from tools import *
-import sys
+from firedrake import (PeriodicIntervalMesh, ExtrudedMesh,
+                       SpatialCoordinate, Function, as_vector, exp,
+                       sin, pi, Constant,
+                       Mesh
+                       )
+from tools import Parameters, compressibleEulerEquations
 
 '''
-    version of "mountain_non-hydrostatic in gusto for new velocity space
-    without making use of gusto
-'''
+gravity wave test case taken from
+    https://doi.org/10.1002/qj.603
+in the non-hydrostatic regime
 
+we add internal mesh deformations to test our
+new spaces
+'''
 
 # set up mesh and parameters for main computations
 dT = Constant(0)  # to be set later
@@ -27,7 +33,7 @@ mesh = ExtrudedMesh(m, layers=nlayers, layer_height=H/nlayers)
 
 Vc = mesh.coordinates.function_space()
 x, y = SpatialCoordinate(mesh)
-new_coords = Function(Vc).interpolate(as_vector([x,y -(4/H**2) *(sin(2*pi*x/L))*((y-H/2)**2 - H**2/4)]  ))
+new_coords = Function(Vc).interpolate(as_vector([x, y - (4/H**2)*(sin(2*pi*x/L))*((y-H/2)**2 - H**2/4)]))
 mesh = Mesh(new_coords)
 H = Constant(H)
 
@@ -50,14 +56,9 @@ sparameters_star = {
     "assembled_pc_star_construct_dim": 0,
     "assembled_pc_star_sub_pc_type": "lu",
     'assembled_pc_star_sub_pc_factor_mat_solver_type' : 'mumps',
-    #"assembled_pc_star_sub_pc_factor_mat_ordering_type": "rcm",
-    #"assembled_pc_star_sub_pc_factor_nonzeros_along_diagonal": 1e-8,
+    # "assembled_pc_star_sub_pc_factor_mat_ordering_type": "rcm",
+    # "assembled_pc_star_sub_pc_factor_nonzeros_along_diagonal": 1e-8,
 }
-
-name = "../../Results/compEuler/gravity-wave/flat/gravity_def"
-
-H = Constant(H)
-
 
 
 # initialise background temperature 
@@ -68,30 +69,25 @@ x, z = SpatialCoordinate(mesh)
 thetab = Tsurf*exp(N**2*z/g)
 
 
-
 # initialise functions for full Euler solver
 xc = L/2
 a = Constant(5000.)
 thetab_pert = 0.01*sin(pi*z/H)/(1+(x-xc)**2/a**2)
 
-
 u0 = as_vector([20.0, 0.0])
-
 
 vertical_degree = 1
 horizontal_degree = 1
+
 Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
 
-Problem.H = H # edit later in class
+Problem.H = H  # edit later in class
 Problem.u0 = u0
-Problem.dT = Constant(12.)
 Problem.solver_params = sparameters_star
 Problem.path_out = "../../Results/compEuler/gravity-wave/def/gravity_def"
 Problem.thetab = thetab
 Problem.theta_init_pert = thetab_pert
-#Problem.sponge_fct = True
-
-#Problem.initilise_rho_lambdar_hydr_balance
+# Problem.sponge_fct = True
 
 dt = 12.
 tmax = 6000.
