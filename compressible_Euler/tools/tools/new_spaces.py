@@ -1,11 +1,13 @@
-from firedrake import ( ExtrudedMesh, FiniteElement, interval, HDiv, TensorProductElement,
-    BrokenElement, EnrichedElement, WithMapping, FunctionSpace, quadrilateral)
+from firedrake import (FiniteElement, interval, HDiv, TensorProductElement,
+                       BrokenElement, EnrichedElement, WithMapping, 
+                       FunctionSpace, quadrilateral)
 
 '''
 function to return (V0, Vv, V1, V2, T) for the 
 velocity, vertical velocity, pressure, temperature. trace
 in that order
 '''
+
 
 def build_spaces(mesh, vertical_degree, horizontal_degree):
 
@@ -28,7 +30,6 @@ def build_spaces(mesh, vertical_degree, horizontal_degree):
         V3_elt = TensorProductElement(S2, T1)
         V2v_elt = HDiv(V2t_elt)
 
-
         V2v_elt_Broken = BrokenElement(HDiv(V2t_elt))
         V2_elt = EnrichedElement(V2h_elt, V2v_elt_Broken)
         VT_elt = TensorProductElement(S2, Tlinear)
@@ -36,21 +37,16 @@ def build_spaces(mesh, vertical_degree, horizontal_degree):
         remapped = WithMapping(V2_elt, "identity")
 
         V0 = FunctionSpace(mesh, remapped, name="new_velocity")
-        V1 = FunctionSpace(mesh, V3_elt, name="DG") # pressure space
+        V1 = FunctionSpace(mesh, V3_elt, name="DG")  # pressure space
         V2 = FunctionSpace(mesh, V2t_elt, name="Temp")
 
-        T = FunctionSpace(mesh, VT_elt, name = "Trace")
+        T = FunctionSpace(mesh, VT_elt, name="Trace")
 
-        remapped = WithMapping(V2v_elt_Broken, "identity") # only test with vertical part, drop Piola transformations
+        remapped = WithMapping(V2v_elt_Broken, "identity")  # only test with vertical part, drop Piola transformations
 
         Vv = FunctionSpace(mesh, remapped, name="Vv")
 
-        DG1_hori_elt = FiniteElement("DG", cell, 1, variant="equispaced")
-        DG1_vert_elt = FiniteElement("DG", interval, 1, variant="equispaced")
-        DG1_elt = TensorProductElement(DG1_hori_elt, DG1_vert_elt)
-        DG1_space = FunctionSpace(mesh, DG1_elt, name = "DG1")
-
-        #W_hydrostatic = MixedFunctionSpace((Vv, V1, T))
+        # W_hydrostatic = MixedFunctionSpace((Vv, V1, T))
 
         # EDIT: return full spaces for full equations later
 
@@ -80,7 +76,6 @@ def build_spaces_slice_3D(mesh, vertical_degree, horizontal_degree):
         V3_elt = TensorProductElement(S2, T1)
         V2v_elt = HDiv(V2t_elt)
 
-
         V2v_elt_Broken = BrokenElement(HDiv(V2t_elt))
         V2_elt = EnrichedElement(V2h_elt, V2v_elt_Broken)
         VT_elt = TensorProductElement(S2, Tlinear)
@@ -91,18 +86,13 @@ def build_spaces_slice_3D(mesh, vertical_degree, horizontal_degree):
         V1 = FunctionSpace(mesh, V3_elt, name="DG") # pressure space
         V2 = FunctionSpace(mesh, V2t_elt, name="Temp")
 
-        T = FunctionSpace(mesh, VT_elt, name = "Trace")
+        T = FunctionSpace(mesh, VT_elt, name="Trace")
 
-        remapped = WithMapping(V2v_elt_Broken, "identity") # only test with vertical part, drop Piola transformations
+        remapped = WithMapping(V2v_elt_Broken, "identity")  # only test with vertical part, drop Piola transformations
 
         Vv = FunctionSpace(mesh, remapped, name="Vv")
 
-        DG1_hori_elt = FiniteElement("DG", cell, 1, variant="equispaced")
-        DG1_vert_elt = FiniteElement("DG", interval, 1, variant="equispaced")
-        DG1_elt = TensorProductElement(DG1_hori_elt, DG1_vert_elt)
-        DG1_space = FunctionSpace(mesh, DG1_elt, name = "DG1")
-
-        #W_hydrostatic = MixedFunctionSpace((Vv, V1, T))
+        # W_hydrostatic = MixedFunctionSpace((Vv, V1, T))
 
         # EDIT: return full spaces for full equations later
 

@@ -1,6 +1,20 @@
-from firedrake import *
-from .new_spaces import build_spaces, build_spaces_slice_3D
-from .physics import *
+from firedrake import (Function,
+                       Constant, FacetNormal, split,
+                       TestFunctions,
+                       NonlinearVariationalProblem,
+                       NonlinearVariationalSolver,
+                       DirichletBC,
+                       dx, dS_h, ds_t, ds_b,
+                       inner, jump, div,
+                       MixedFunctionSpace,
+                       TrialFunctions,
+                       LinearVariationalProblem,
+                       LinearVariationalSolver,
+                       op2
+                       )
+from tools.new_spaces import build_spaces, build_spaces_slice_3D
+from tools.physics import thermodynamics_pi, thermodynamics_rho
+
 
 def compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
                                      parameters, theta0, rho0, lambdar0, 
@@ -9,7 +23,7 @@ def compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
                                      water_t=None,
                                      solve_for_rho=False,
                                      params=None,
-                                     slice_3D = False):
+                                     slice_3D=False):
     """
     Compute a hydrostatically balanced density given a potential temperature
     profile. By default, this uses a vertically-oriented hybridization
@@ -26,12 +40,11 @@ def compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
     """
 
     # Calculate hydrostatic Pi
-    
     if slice_3D:
-        _, Vv, Vp, Vt, Vtr = build_spaces_slice_3D(mesh, vertical_degree, horizontal_degree )
-    else: 
-        _, Vv, Vp, Vt, Vtr = build_spaces(mesh, vertical_degree, horizontal_degree )
-    
+        _, Vv, Vp, Vt, Vtr = build_spaces_slice_3D(mesh, vertical_degree, horizontal_degree)
+    else:
+        _, Vv, Vp, Vt, Vtr = build_spaces(mesh, vertical_degree, horizontal_degree)
+
     W = MixedFunctionSpace((Vv, Vp, Vtr))
     v, pi, lambdar = TrialFunctions(W)
     dv, dpi, gammar = TestFunctions(W)
@@ -46,33 +59,25 @@ def compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
 
     if top:
         bmeasure = ds_t
-        bstring = "bottom"
         vmeasure = ds_b
     else:
         bmeasure = ds_b
         vmeasure = ds_t
-        bstring = "top"
 
     cp = parameters.cp
 
     alhs = (
         (cp*inner(v, dv) - cp*div(dv*theta)*pi)*dx
-        +cp * dpi*div(theta*v)*dx
-
+        + cp * dpi*div(theta*v)*dx
         - cp*inner(theta*v, n) * gammar * vmeasure
         - cp*jump(theta*v, n=n) * gammar('+') * (dS_h)
-
         + cp*inner(theta*dv, n) * lambdar * vmeasure
         + cp*jump(theta*dv, n=n) * lambdar('+') * (dS_h)
-
         + gammar * lambdar * bmeasure
     )
 
     arhs = -cp*inner(dv, n)*theta*pi_boundary*bmeasure
     arhs += gammar * pi_boundary*bmeasure
-
-    # Possibly make g vary with spatial coordinates?
-
 
     dim = mesh.topological_dimension()
     kvec = [0.0] * dim
@@ -82,23 +87,13 @@ def compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
     g = parameters.g
     arhs -= g*inner(dv, k)*dx
 
-    #bcs = [DirichletBC(W.sub(0), zero(), bstring)]
-    bcs =[]
+    # bcs = [DirichletBC(W.sub(0), zero(), bstring)]
+    bcs = []
 
     w = Function(W)
     PiProblem = LinearVariationalProblem(alhs, arhs, w, bcs=bcs)
 
     if params is None:
-        #params = {'ksp_type': 'preonly',
-         #         'pc_type': 'python',
-          #        'mat_type': 'matfree',
-           #       'pc_python_type': 'gusto.VerticalHybridizationPC', #EDIT: Use SCPC instead
-            #      # Vertical trace system is only coupled vertically in columns
-             #     # block ILU is a direct solver!
-              #    'vert_hybridization': {'ksp_type': 'preonly',
-               #                          'pc_type': 'bjacobi',
-                #                         'sub_pc_type': 'ilu'}}
-
         scpc_parameters = {"ksp_type": "preonly", "pc_type": "lu"}
         params = {"ksp_type": "gmres",
                   "snes_monitor": None,
@@ -108,7 +103,6 @@ def compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
                                   "pc_python_type": "firedrake.SCPC",
                                   "condensed_field": scpc_parameters,
                                   "pc_sc_eliminate_fields": "0,1"}
-
 
     PiSolver = LinearVariationalSolver(PiProblem,
                                        solver_parameters=params,
@@ -132,20 +126,16 @@ def compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
 
         v, rho, lambdar = split(w1)
 
-
         dv, dpi, gammar = TestFunctions(W)
         pi = thermodynamics_pi(rho, theta0)
         F = (
             (cp*inner(v, dv) - cp*div(dv*theta)*pi)*dx
             + cp * inner(theta * dv, n) * lambdar * vmeasure
             + cp * jump(theta * dv, n=n) * lambdar('+') * (dS_h)
-
             - cp * inner(theta*v, n) * gammar * vmeasure
             - cp * jump(theta*v, n=n) * gammar('+') * (dS_h)
-
             + dpi*div(theta0*v)*dx
             + cp*inner(dv, n)*theta*pi_boundary*bmeasure
-
             + gammar * (lambdar - pi_boundary) * bmeasure
         )
 
@@ -172,35 +162,33 @@ def minimum(f):
             """, "minify"), f.dof_dset.set, fmin(op2.MIN), f.dat(op2.READ))
     return fmin.data[0]
 
+
 def applyBC(u):
     bc = DirichletBC(u.function_space(), 0.0, "bottom")
     bc.apply(u)
 
 
-def compressible_hydrostatic_balance_with_correct_pi_top(mesh, vertical_degree, horizontal_degree,
-                                                         parameters, theta_b, rho_b, lambdar_b, Pi=None, slice_3D=False):
+def compressible_hydrostatic_balance_with_correct_pi_top(
+            mesh, vertical_degree, horizontal_degree,
+            parameters, theta_b, rho_b, lambdar_b, Pi=None, slice_3D=False):
 
-    
-    ## specify solver parameters for the hydrostatic balance
+    # specify solver parameters for the hydrostatic balance
     scpc_parameters = {"ksp_type": "preonly", "pc_type": "lu"}
     piparamsSCPC = {"ksp_type": "gmres",
                     "ksp_monitor": None,
-                    #"ksp_view":None,
+                    # "ksp_view":None,
                     "mat_type": "matfree",
-                    #'pc_type':'lu',
-                    #'pc_factor_mat_solver_type':'mumps'}
+                    # 'pc_type':'lu',
+                    # 'pc_factor_mat_solver_type':'mumps'}
                     "pc_type": "python",
                     "pc_python_type": "firedrake.SCPC",
                     "condensed_field": scpc_parameters,
                     "pc_sc_eliminate_fields": "0,1"}
-    
-    
+
     compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
                                      parameters, theta_b, rho_b, lambdar_b,
                                      Pi, top=True, pi_boundary=0.5,
                                      params=piparamsSCPC, slice_3D=slice_3D)
-
-
 
     # solve with the correct pressure on the top boundary
     p0 = minimum(Pi)
@@ -215,9 +203,8 @@ def compressible_hydrostatic_balance_with_correct_pi_top(mesh, vertical_degree, 
 
     print("SOLVE FOR RHO NOW")
 
-    #rho_b to be used later as initial guess for solving Euler equations
-    compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree, 
+    # rho_b to be used later as initial guess for solving Euler equations
+    compressible_hydrostatic_balance(mesh, vertical_degree, horizontal_degree,
                                      parameters, theta_b, rho_b, lambdar_b,
                                      Pi, top=True, pi_boundary=pi_top, solve_for_rho=True,
                                      params=piparamsSCPC, slice_3D=slice_3D)
-

@@ -1,14 +1,28 @@
-from firedrake import *
-from tools.hydrostatic_balance import *
-from tools. new_spaces import *
-from tools.physics import *
+from firedrake import (SpatialCoordinate, Function, as_vector,
+                       Constant, FacetNormal, split,
+                       TestFunctions,
+                       conditional, sin,
+                       NonlinearVariationalProblem,
+                       NonlinearVariationalSolver,
+                       DirichletBC,
+                       dx, dS_h, dS_v, ds_t, ds_b,
+                       dot, sign, inner, grad,
+                       curl, cross, jump, perp, div,
+                       File
+                       )
+from tools import (Parameters, build_spaces, build_spaces_slice_3D,
+                   compressible_hydrostatic_balance_with_correct_pi_top,
+                   thermodynamics_pi, apply_BC_def_mesh
+                   )
+
 import numpy as np
 from petsc4py import PETSc
 
+
 class compressibleEulerEquations:
 
-    def __init__(self, mesh, vertical_degree=1, horizontal_degree=1, slice_3D=False, mesh_periodic=True):
-    
+    def __init__(self, mesh, vertical_degree=1, horizontal_degree=1,
+                 slice_3D=False, mesh_periodic=True):
 
         self.mesh = mesh
         self.vertical_degree = vertical_degree
@@ -30,17 +44,14 @@ class compressibleEulerEquations:
         zvec = [0.0] * self.dim
         zvec[self.dim - 1] = 1.0
         self.zvec = Constant(zvec)
-        #self.zvec = as_vector([0, 1])
 
         if self.slice_3D:
             self.V0, self.Vv, self.Vp, self.Vt, self.Vtr = build_spaces_slice_3D(self.mesh, self.vertical_degree, self.horizontal_degree)
-        else: 
+        else:
             self.V0, self.Vv, self.Vp, self.Vt, self.Vtr = build_spaces(self.mesh, self.vertical_degree, self.horizontal_degree)
 
-        #self.V0, self.Vv, self.Vp, self.Vt, self.Vtr = build_spaces(self.mesh, self.vertical_degree, self.horizontal_degree),
         self.W = self.V0*self.Vp*self.Vt*self.Vtr
 
-        
         self.Pi0 = Function(self.Vp)
         self.rho0 = Function(self.Vp)
         self.lambdar0 = Function(self.Vtr)
@@ -48,17 +59,15 @@ class compressibleEulerEquations:
         self.N = self.Parameters.N
         self.g = self.Parameters.g
 
-    
-        
-    #initialise rho0 and lambda0
-    
     def solve(self, dt, tmax, dumpt):
-        
+
         self.theta_b = Function(self.Vt).interpolate(self.thetab)
-        compressible_hydrostatic_balance_with_correct_pi_top(self.mesh, 
-                                                                self.vertical_degree, self.horizontal_degree,
-                                                                self.Parameters, 
-                                                                self.theta_b, self.rho0, self.lambdar0, self.Pi0, self.slice_3D)
+        compressible_hydrostatic_balance_with_correct_pi_top(
+                    self.mesh,
+                    self.vertical_degree, self.horizontal_degree,
+                    self.Parameters,
+                    self.theta_b, self.rho0, self.lambdar0, self.Pi0, 
+                    self.slice_3D)
         
         Un = Function(self.W)
         Unp1 = Function(self.W)
@@ -67,58 +76,52 @@ class compressibleEulerEquations:
 
         unph = 0.5*(un + unp1)
         thetanph = 0.5*(thetan + thetanp1)
-        lambdarnph = 0.5*(lambdarn + lambdarnp1)
         rhonph = 0.5*(rhon + rhonp1)
 
         Pin = thermodynamics_pi(rhon, thetan)
         Pinp1 = thermodynamics_pi(rhonp1, thetanp1)
         Pinph = 0.5*(Pin + Pinp1)
 
-        #functions for the upwinding terms
+        # functions for the upwinding terms
         unph_mean = 0.5*(unph("+") + unph("-"))
 
         dS = dS_h + dS_v
 
         def unn(r):
-            return 0.5*(dot(unph_mean, self.n(r)) + abs(dot(unph_mean, self.n(r))))  # used for the upwind-term
-       
+            return 0.5*(
+                        dot(unph_mean, self.n(r))
+                        + abs(dot(unph_mean, self.n(r)))
+                        )
+
         def Upwind(r):
-          return 0.5*(sign(dot(unph_mean, self.n(r)))+1)
+            return 0.5*(sign(dot(unph_mean, self.n(r)))+1)
 
-
-        if self.dim ==2:
+        if self.dim == 2:
             perp_u_upwind = lambda q: Upwind('+')*perp(q('+')) + Upwind('-')*perp(q('-'))
-            u_upwind = lambda q: Upwind('+')*q('+') + Upwind('-')*q('-')
 
-        
             def uadv_eq(w):
                 return(-inner(perp(grad(inner(w, perp(unph)))), unph)*dx
-                    - inner(jump(inner(w, perp(unph)), self.n), perp_u_upwind(unph))*(dS_v)
-                    - inner(jump(inner(w, perp(unph)), self.n), perp_u_upwind(unph))*(dS_h)
-                    #- inner(inner(w, perp(unph))* self.n, unph) * ( ds_t + ds_b )
-                    - 0.5 * inner(unph, unph) * div(w) * dx
-                    # + 0.5 * inner(u_upwind(unph), u_upwind(unph)) * jump(w, n) * dS_h
-                    #+Constant(1e-50)*jump(unph,self.n)*jump(w,self.n)*dS_h
-                    #+Constant(1e-50)*inner(unph,self.n)*inner(w,self.n)*ds_tb
-                    )
-        elif self.dim ==3:
+                       - inner(jump(inner(w, perp(unph)), self.n), perp_u_upwind(unph))*(dS_v)
+                       - inner(jump(inner(w, perp(unph)), self.n), perp_u_upwind(unph))*(dS_h)
+                       # - inner(inner(w, perp(unph))* self.n, unph) * ( ds_t + ds_b )
+                       - 0.5 * inner(unph, unph) * div(w) * dx
+                       # + 0.5 * inner(u_upwind(unph), u_upwind(unph)) * jump(w, n) * dS_h
+                       # +Constant(1e-50)*jump(unph,self.n)*jump(w,self.n)*dS_h
+                       # +Constant(1e-50)*inner(unph,self.n)*inner(w,self.n)*ds_tb
+                       )
 
-            def both(u):
-                return 2*avg(u)
+        elif self.dim == 3:
 
             def uadv_eq(w):
                 return(inner(unph, curl(cross(unph, w)))*dx
-                - inner(Upwind('+')*unph('+') + Upwind('-')*unph('-'), 
-                        (cross(self.n, cross(unph, w)))('+') + (cross(self.n, cross(unph, w)))('-'))*dS
-                - 0.5 * inner(unph, unph) * div(w)*dx)
-            
-            def coriolis_term(w):
-                return f*inner(w, cross(self.zvec, unph))*dx
-  
+                       - inner(Upwind('+')*unph('+') + Upwind('-')*unph('-'), 
+                       (cross(self.n, cross(unph, w)))('+') + (cross(self.n, cross(unph, w)))('-'))*dS
+                       - 0.5 * inner(unph, unph) * div(w)*dx
+                       )
+
         else:
             raise NotImplementedError
 
-        
         def u_eqn(w, gammar):
             return (inner(w, unp1 - un)*dx + self.dT * (
                     uadv_eq(w)
@@ -129,10 +132,9 @@ class compressibleEulerEquations:
                     # + c_p * inner(thetanph * w, n) * Pinph * (ds_v)
                     + self.g * inner(w, self.zvec)*dx)
                     
-                    + gammar('+')*jump(unph, self.n)*dS_h # maybe try adding theta
+                    + gammar('+')*jump(unph, self.n)*dS_h  # maybe try adding theta
                     + gammar*inner(unph, self.n)*(ds_t + ds_b)
                     )
-
 
         dS = dS_h + dS_v
 
@@ -141,12 +143,13 @@ class compressibleEulerEquations:
                     + self.dT*(-inner(grad(phi), rhonph*unph)*dx
                                + (phi('+') - phi('-'))*(unn('+')*rhonph('+') - unn('-')*rhonph('-'))*dS
                                # + dot(phi*unph,n) *ds_v
-                              )
+                               )
                     )
 
         def theta_eqn(chi):
             return (chi*(thetanp1 - thetan)*dx
-                    + self.dT * (inner(chi*unph, grad(thetanph))*dx
+                    + self.dT * (
+                            inner(chi*unph, grad(thetanph))*dx
                             + (chi('+') - chi('-'))* (unn('+')*thetanph('+') - unn('-')*thetanph('-'))*dS
                             - dot(chi('+')*thetanph('+')*unph('+'),  self.n('+'))*dS 
                             - inner(chi('-')*thetanph('-')*unph('-'), self.n('-'))*dS
@@ -160,16 +163,16 @@ class compressibleEulerEquations:
         # a = Constant(10000.0)
         eqn = u_eqn(w, gammar) + theta_eqn(chi) + rho_eqn(phi) # + gamma * rho_eqn(div(w))
 
-        if self.dim==3:
+        if self.dim == 3:
             f = Constant(1.0e-4)
             eqn += f*inner(w, cross(self.zvec, unph))*dx
 
         if self.sponge_fct:
             mubar = 0.3
             zc = self.H-10000.
-            if self.dim==2:
+            if self.dim == 2:
                 _, z = SpatialCoordinate(self.mesh)
-            elif self.dim==3:
+            elif self.dim == 3:
                 _, _, z = SpatialCoordinate(self.mesh)
             else:
                 raise NotImplementedError
@@ -181,20 +184,18 @@ class compressibleEulerEquations:
 
         if not self.mesh_periodic:
             bc1 = DirichletBC(self.W.sub(0), 0., 1)
-            bc2 = DirichletBC(self.W.sub(0), 0., 2) 
-            nprob = NonlinearVariationalProblem(eqn, Unp1, bcs=[bc1,bc2])  
+            bc2 = DirichletBC(self.W.sub(0), 0., 2)
+            nprob = NonlinearVariationalProblem(eqn, Unp1, bcs=[bc1, bc2])
 
         self.solver = NonlinearVariationalSolver(nprob, solver_parameters=self.solver_params)
 
         theta0 = Function(self.Vt, name="theta0").interpolate(self.thetab + self.theta_init_pert)
         self.thetab = Function(self.Vt).interpolate(self.thetab)
         self.rho0 = Function(self.Vp, name="rho0").interpolate(self.rho0)  # where rho_b solves the hydrostatic balance eq.
-        #u0 = Function(self.V0, name="u0").project(self.u0)
+
         U0_bc = apply_BC_def_mesh(self.u0, self.V0, self.Vtr)
         u0_bc, _ = U0_bc.split()
         u0 = Function(self.V0, name="u0").project(u0_bc)
-
-        #self.lambdar0 = Function(self.Vtr, name="lambdar0").assign(self.lambdar0)
 
         un.assign(u0)
         rhon.assign(self.rho0)
@@ -217,20 +218,17 @@ class compressibleEulerEquations:
 
         file_out.write(un, rhon_pert, thetan_pert)
 
-       
         tdump = 0.
         self.dT.assign(dt)
-        
 
         PETSc.Sys.Print('tmax', tmax, 'dt', dt)
         t = 0.
-
 
         while t < tmax - 0.5*dt:
             PETSc.Sys.Print(t)
             t += dt
             tdump += dt
-            
+
             self.solver.solve()
 
             Un.assign(Unp1)
@@ -241,11 +239,10 @@ class compressibleEulerEquations:
             PETSc.Sys.Print("rho max min pert", rhon_pert.dat.data.max(),  rhon_pert.dat.data.min())
             PETSc.Sys.Print("theta max min pert", thetan_pert.dat.data.max(), thetan_pert.dat.data.min())
             PETSc.Sys.Print('lambda max min', lambdarn.dat.data.max(), lambdarn.dat.data.min())
-            
+
             if tdump > dumpt - dt*0.5:
                 file_out.write(un, rhon_pert, thetan_pert)
                 # file_gw.write(un, rhon, thetan, lambdarn)
                 # file2.write(un_pert, rhon_pert, thetan_pert)
                 tdump -= dumpt
             PETSc.Sys.Print(self.solver.snes.getIterationNumber())
- 

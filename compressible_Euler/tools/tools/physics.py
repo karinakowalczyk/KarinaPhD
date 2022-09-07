@@ -28,6 +28,7 @@ def thermodynamics_rho(theta_v, pi):
 
     return p_0 * pi ** (1 / kappa - 1) / (R_d * theta_v)
 
+
 def thermodynamics_pi(rho, theta_v):
     """
     Returns an expression for the Exner pressure.
@@ -60,24 +61,23 @@ def apply_BC_def_mesh(u0, V, T):
     u, lambdar = split(U)
     n = FacetNormal(V.mesh())
 
-    a = (inner(w,u)*dx - inner(w,u0)*dx 
-         + jump(w,n)*lambdar('+')*dS_h
+    a = (inner(w, u)*dx - inner(w, u0)*dx
+         + jump(w, n)*lambdar('+')*dS_h
          + inner(w, n)*lambdar*ds_tb
-         + jump(u,n)*mu('+')*dS_h
+         + jump(u, n)*mu('+')*dS_h
          + inner(u, n)*mu*ds_tb
-        )
-    L = 0
+         )
     sparameters_exact = {"mat_type": "aij",
-                   'snes_monitor': None,
-                   #'snes_stol': 1e-50,
-                   #'snes_view': None,
-                   #'snes_type' : 'ksponly',
-                   'ksp_monitor_true_residual': None,
-                   'snes_converged_reason': None,
-                   'ksp_converged_reason': None,
-                   "ksp_type" : "preonly",
-                   "pc_type" : "lu",
-                   "pc_factor_mat_solver_type": "mumps"}
+                         'snes_monitor': None,
+                         # 'snes_stol': 1e-50,
+                         # 'snes_view': None,
+                         # 'snes_type' : 'ksponly',
+                         'ksp_monitor_true_residual': None,
+                         'snes_converged_reason': None,
+                         'ksp_converged_reason': None,
+                         "ksp_type": "preonly",
+                         "pc_type": "lu",
+                         "pc_factor_mat_solver_type": "mumps"}
 
     problem = NonlinearVariationalProblem(a, U)
     solver = NonlinearVariationalSolver(problem, solver_parameters=sparameters_exact)
