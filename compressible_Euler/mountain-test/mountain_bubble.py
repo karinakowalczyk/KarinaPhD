@@ -58,6 +58,7 @@ Vc = mesh.coordinates.function_space()
 f_mesh = Function(Vc).interpolate(as_vector([x, z + ((H-z)/H)*zs]))
 mesh.coordinates.assign(f_mesh)
 
+
 # initialise background temperature
 Tsurf = 300.
 N = parameters.N
