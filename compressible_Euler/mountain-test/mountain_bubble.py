@@ -39,8 +39,8 @@ c_p = parameters.cp
 # build volume mesh
 L = 20000.
 H = 20000.  # Height position of the model top
-delx = 100
-delz = 100
+delx = 150
+delz = 150
 nlayers = H/delz  # horizontal layers
 columns = L/delx  # number of columns
 distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
@@ -90,6 +90,6 @@ Problem.sponge_fct = True
 
 dt = 2.
 tmax = 1000.
-dumpt = 4.
+dumpt = 2.
 
 Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt)
