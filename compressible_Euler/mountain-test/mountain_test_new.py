@@ -42,10 +42,10 @@ c_p = parameters.cp
 
 
 # set mesh parameters
-L = 100000.
-H = 30000.  # Height position of the model top
-delx = 500*2
-delz = 300*2
+L = 144000.
+H = 35000.  # Height position of the model top
+delx = 400*2
+delz = 250*2
 nlayers = H/delz  # horizontal layers
 columns = L/delx  # number of columns
 
@@ -87,7 +87,7 @@ Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
 Problem.H = H  # edit later in class
 Problem.u0 = u0
 Problem.solver_params = sparameters_star
-Problem.path_out = "../../Results/compEuler/mountain-test/mountain"
+Problem.path_out = "../Results/mountainNH"
 Problem.thetab = thetab
 Problem.theta_init_pert = 0
 Problem.sponge_fct = True

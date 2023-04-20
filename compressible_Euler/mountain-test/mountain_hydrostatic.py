@@ -40,10 +40,18 @@ parameters = Parameters()
 g = parameters.g
 c_p = parameters.cp
 
-
-nlayers = 100  # horizontal layers 50./100 = 0.5 = 2*250
-base_columns = 60  # number of columns 240000/60 = 4000 = 2*2000
+# build volume mesh
 L = 240e3
+H = 50e3  # Height position of the model top
+delx = 2000
+delz = 250
+nlayers = H/delz  # horizontal layers
+columns = L/delx  # number of columns
+distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
+m = PeriodicIntervalMesh(columns, L, distribution_parameters=distribution_parameters)
+mesh = ExtrudedMesh(m, layers=nlayers, layer_height=delz)
+
+
 distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
 
 m = PeriodicRectangleMesh(base_columns, ny=1, Lx=L, Ly=1.0e-3*L,
@@ -55,8 +63,6 @@ m.coordinates.dat.data[:, 1] -= 1.0e-3*L/2
 
 
 # build volume mesh
-H = 50e3  # Height position of the model top
-mesh = ExtrudedMesh(m, layers=nlayers, layer_height=H/nlayers)
 n = FacetNormal(mesh)
 
 # making a mountain out of a molehill
@@ -84,12 +90,6 @@ N = g/sqrt(c_p*Tsurf)
 thetab = Tsurf*exp(N**2*z/g)
 
 
-# initialise background temperature
-# N^2 = (g/theta)dtheta/dz => dtheta/dz = theta N^2g => theta=theta_0exp(N^2gz)
-Tsurf = 288.
-N = parameters.N
-thetab = Tsurf*exp(N**2*z/g)
-
 u0 = as_vector([Constant(20.0),
                 Constant(0.0),
                 Constant(0.0)])
@@ -103,7 +103,7 @@ Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree, s
 Problem.H = H  # edit later in class
 Problem.u0 = u0
 Problem.solver_params = sparameters_star
-Problem.path_out = "../../Results/compEuler/mountain-hydrostatic/mountain_hydrostatic"
+Problem.path_out = "../Results/mountainH"
 Problem.thetab = thetab
 Problem.theta_init_pert = 0
 Problem.sponge_fct = True
