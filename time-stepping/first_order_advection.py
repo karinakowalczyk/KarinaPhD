@@ -111,14 +111,13 @@ def adv_eq_vector_id(u, ubar, w):
 def eq_D(Dbar, ubar):
     h = D-Dbar
     uup = 0.5 * (dot(ubar, n) + abs(dot(ubar, n)))
-    return (- inner(grad(phi), outer(D,ubar))*dx
-            + dot(jump(phi),(uup('+')*D('+')
-                            - uup('-')*D('-')))*(dS)
+    return (inner(grad(phi), outer(D,ubar))*dx
+            -dot(jump(phi),(uup('+')*D('+')- uup('-')*D('-')))*(dS)
     )
 
 #equations are independent
 L1_u = dtc*adv_u(ubar)
-L1_D = dtc*eq_D(Dbar,ubar)
+L1_D = dtc*eq_D(Dbar, ubar)
 
 #for the second and third step of SSPRK
 u1 = Function(V1_broken); u2 = Function(V1_broken)
