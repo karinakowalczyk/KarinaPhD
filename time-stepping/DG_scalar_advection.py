@@ -2,6 +2,16 @@ from firedrake import *
 import math
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+import numpy as np
+
+
+def plot_fd_vector(function, name):
+    fig, axes = plt.subplots()
+    quiver(function, axes=axes)
+    axes.set_aspect("equal")
+    axes.set_title(name)
+    fig.savefig(name)
+
 
 mesh = PeriodicUnitSquareMesh(40, 40)
 
@@ -10,13 +20,20 @@ mesh = PeriodicUnitSquareMesh(40, 40)
 
 V = FunctionSpace(mesh, "DG", 1)
 W = FunctionSpace(mesh, "BDM", 2)
+#velocity space
+element = FiniteElement("BDM", triangle, degree=2)
+V1_broken = FunctionSpace(mesh, BrokenElement(element))
+V1 = FunctionSpace(mesh, element)
+#space for height:
+V2 = FunctionSpace(mesh, "DG", 1)
+W = MixedFunctionSpace((V1_broken,V2))
 
 # We set up the initial velocity field using a simple analytic expression. ::
 
 x, y = SpatialCoordinate(mesh)
 
 velocity = as_vector((0.2, 0))
-ubar = Function(W).interpolate(velocity)
+ubar = Function(V1).interpolate(velocity)
 
 # Now, we set up the cosine-bell--cone--slotted-cylinder initial coniditon. The
 # first four lines declare various parameters relating to the positions of these
@@ -33,13 +50,17 @@ slot_cyl = conditional(sqrt(pow(x-cyl_x0, 2) + pow(y-cyl_y0, 2)) < cyl_r0,
              conditional(And(And(x > slot_left, x < slot_right), y < slot_top),
                0.0, 1.0), 0.0)
 
-D = Function(V).interpolate(1.0 + bell)
-D_init = Function(V).assign(D)
-
+D = Function(V2).interpolate(1.0 + bell)
+u = Function(V1_broken).interpolate(as_vector([1+bell, 1+bell]))
+D_init = Function(V2).assign(D)
+u_init = Function(V1_broken).assign(u)
+plot_fd_vector(u_init, "uinit")
+   
 # Next we'll create a list to store the function values at every timestep so that
 # we can make a movie of them later. ::
 
 Ds = []
+us =[]
 
 # We will run for time :math:`2\pi`, a full rotation.  We take 600 steps, giving
 # a timestep close to the CFL limit.  We declare an extra variable ``dtc``; for
@@ -57,10 +78,13 @@ D_in = Constant(1.0)
 # stage, the explicit timestepping scheme means that the left hand side is just a
 # mass matrix. ::
 
-dD_trial = TrialFunction(V)
-phi = TestFunction(V)
-a = phi*dD_trial*dx
+dD_trial = TrialFunction(V2)
+phi = TestFunction(V2)
+a_D = phi*dD_trial*dx
 
+du_trial = TrialFunction(V1_broken)
+w = TestFunction(V1_broken)
+a_u = inner(w, du_trial)*dx
 # The right-hand-side is more interesting.  We define ``n`` to be the built-in
 # ``FacetNormal`` object; a unit normal vector that can be used in integrals over
 # exterior and interior facets.  We next define ``un`` to be an object which is
@@ -83,27 +107,51 @@ def eq_D(ubar):
             - jump(phi)*(uup('+')*D('+')
                             - uup('-')*D('-'))*dS)
 
-L1 = dtc*(eq_D(ubar))
+def perp_u_upwind(u):
+    Upwind = 0.5 * (sign(dot(u, n)) + 1)
+    return Upwind('+')*perp(u('+')) + Upwind('-')*perp(u('-'))
+
+def adv_u(ubar):
+    un = 0.5*(dot(ubar, n) + abs(dot(ubar, n)))
+
+    return(-inner(div(outer(w, ubar)), u)*dx
+           +dot(jump(w), (un('+')*u('+') - un('-')*u('-')))*dS
+    )
+
+L1_D = dtc*(eq_D(ubar))
+L1_u = dtc*(-adv_u(ubar))
 # In our Runge-Kutta scheme, the first step uses :math:`q^n` to obtain
 # :math:`q^{(1)}`.  We therefore declare similar forms that use :math:`q^{(1)}`
 # to obtain :math:`q^{(2)}`, and :math:`q^{(2)}` to obtain :math:`q^{n+1}`. We
 # make use of UFL's ``replace`` feature to avoid writing out the form repeatedly. ::
 
-D1 = Function(V); D2 = Function(V)
-L2 = replace(L1, {D: D1}); L3 = replace(L1, {D: D2})
+D1 = Function(V2); D2 = Function(V2)
+L2_D = replace(L1_D, {D: D1}); L3_D = replace(L1_D, {D: D2})
+
+u1 = Function(V1_broken); u2 = Function(V1_broken)
+L2_u = replace(L1_u, {u: u1}); L3_u = replace(L1_u, {u: u2})
+
 
 # We now declare a variable to hold the temporary increments at each stage. ::
 
-dD = Function(V)
+dD = Function(V2)
+du = Function(V1_broken)
 
 
 params = {'ksp_type': 'preonly', 'pc_type': 'bjacobi', 'sub_pc_type': 'ilu'}
-prob1 = LinearVariationalProblem(a, L1, dD)
-solv1 = LinearVariationalSolver(prob1, solver_parameters=params)
-prob2 = LinearVariationalProblem(a, L2, dD)
-solv2 = LinearVariationalSolver(prob2, solver_parameters=params)
-prob3 = LinearVariationalProblem(a, L3, dD)
-solv3 = LinearVariationalSolver(prob3, solver_parameters=params)
+prob1_D = LinearVariationalProblem(a_D, L1_D, dD)
+solv1_D = LinearVariationalSolver(prob1_D, solver_parameters=params)
+prob2_D = LinearVariationalProblem(a_D, L2_D, dD)
+solv2_D = LinearVariationalSolver(prob2_D, solver_parameters=params)
+prob3_D = LinearVariationalProblem(a_D, L3_D, dD)
+solv3_D = LinearVariationalSolver(prob3_D, solver_parameters=params)
+
+prob_u1 = LinearVariationalProblem(a_u, L1_u, du)
+solv_u1 = LinearVariationalSolver(prob_u1, solver_parameters=params)
+prob_u2 = LinearVariationalProblem(a_u, L2_u, du)
+solv_u2 = LinearVariationalSolver(prob_u2, solver_parameters=params)
+prob_u3 = LinearVariationalProblem(a_u, L3_u, du)
+solv_u3 = LinearVariationalSolver(prob_u3, solver_parameters=params)
 
 # We now run the time loop.  This consists of three Runge-Kutta stages, and every
 # 20 steps we write out the solution to file and print the current time to the
@@ -112,21 +160,33 @@ solv3 = LinearVariationalSolver(prob3, solver_parameters=params)
 t = 0.0
 step = 0
 output_freq = 20
+out_file = File("solution.pvd")
+out_file.write(D, u)
 while t < T - 0.5*dt:
-    solv1.solve()
+    solv1_D.solve()
     D1.assign(D + dD)
 
-    solv2.solve()
+    solv2_D.solve()
     D2.assign(0.75*D + 0.25*(D1 + dD))
 
-    solv3.solve()
+    solv3_D.solve()
     D.assign((1.0/3.0)*D + (2.0/3.0)*(D2 + dD))
+
+    solv_u1.solve()
+    u1.assign(u + du)
+
+    solv_u2.solve()
+    u2.assign(0.75*u + 0.25*(u1 + du))
+
+    solv_u3.solve()
+    u.assign((1.0/3.0)*u + (2.0/3.0)*(u2 + du))
+
 
     step += 1
     t += dt
 
     if step % output_freq == 0:
-        Ds.append(D.copy(deepcopy=True))
+        out_file.write(D,u)
         print("t=", t)
 
 # To check our solution, we display the normalised :math:`L^2` error, by comparing
@@ -136,32 +196,3 @@ L2_err = sqrt(assemble((D - D_init)*(D - D_init)*dx))
 L2_init = sqrt(assemble(D_init*D_init*dx))
 print(L2_err/L2_init)
 
-# Finally, we'll animate our solution using matplotlib. We'll need to evaluate
-# the solution at many points in every frame of the animation, so we'll employ a
-# helper class that pre-computres some relevant data in order to speed up the
-# evaluation. ::
-
-nsp = 16
-fn_plotter = FunctionPlotter(mesh, num_sample_points=nsp)
-
-# We first set up a figure and axes and draw the first frame. ::
-
-fig, axes = plt.subplots()
-axes.set_aspect('equal')
-colors = tripcolor(D_init, num_sample_points=nsp, vmin=1, vmax=2, axes=axes)
-fig.colorbar(colors)
-
-# Now we'll create a function to call in each frame. This function will use the
-# helper object we created before. ::
-
-def animate(q):
-    colors.set_array(fn_plotter(q))
-
-# The last step is to make the animation and save it to a file. ::
-
-interval = 1e3 * output_freq * dt
-animation = FuncAnimation(fig, animate, frames=Ds, interval=interval)
-try:
-    animation.save("DG_advection_test.mp4", writer="ffmpeg")
-except:
-    print("Failed to write movie! Try installing `ffmpeg`.")
