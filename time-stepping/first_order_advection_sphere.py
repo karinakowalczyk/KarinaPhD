@@ -46,24 +46,23 @@ D = Function(V2).interpolate(D_expr)
 
 
 # define velocity field to be advected:
-x_c = as_vector([0.5, 0., sqrt(3)/2])
-F_0 = 3.
-l_0 = 1/4
+x_c = as_vector([1., 0., 0.])
+F_0 = Constant(3.)
+l_0 = Constant(0.25)
 
 def dist_sphere(x, x_c):
-    return(R0*acos(dot(x,x_c)/R0**2))
+    return acos(dot(x/R0,x_c))
 
 e_theta = as_vector([x[0]*x[2], x[1]*x[2], -x[0]**2 - x[1]**2])
-e_theta = e_theta/(norm(e_theta)+0.0001)
+e_theta = e_theta/(norm(e_theta)+1e-8)
 print("etheta norm:", norm(e_theta))
 
-F_theta = F_0*exp(-dist_sphere(x,x_c)/l_0**2)
-velocity = F_theta*e_theta
-
-
+F_theta = F_0*exp(-dist_sphere(x,x_c)**2/l_0**2)
+F_theta_c = conditional(dist_sphere(x,x_c) > 0.5, 0., F_theta)
+velocity = F_theta_c*e_theta
+D.interpolate(F_theta_c)
 u = Function(V1_broken).interpolate(velocity)
-
-print("u is set")
+print("u is set", norm(u), norm(D))
 
 D_init = Function(V2).assign(D)
 u_init = Function(V1_broken).assign(u)

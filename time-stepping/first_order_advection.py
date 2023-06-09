@@ -56,7 +56,7 @@ slot_cyl = conditional(sqrt(pow(x-cyl_x0, 2) + pow(y-cyl_y0, 2)) < cyl_r0,
                0.0, 1.0), 0.0)
 
 Unp1 = Function(W)
-unp1, Dnp1 = split(Unp1)
+unp1, Dnp1 = Unp1.subfunctions
 
 Dnp1.interpolate(1.0 + bell)
 unp1.interpolate(as_vector([1+bell, 1+bell]))
@@ -67,7 +67,7 @@ Dbar = Function(V2).assign(Dnp1)
 
 #to be the solutions, initialised with un, Dn
 D = Function(V2).assign(Dnp1)
-u = Function(V1_broken).assign(unp1)
+u = Function(V1_broken).project(unp1)
 D_init = Function(V2).assign(D)
 u_init = Function(V1_broken).assign(u)
 plot_fd_vector(u_init, "uinit")
@@ -171,7 +171,7 @@ solv_2_u = LinearVariationalSolver(prob_2_u, solver_parameters=params)
 prob_3_u = LinearVariationalProblem(a_u, L3_u, du)
 solv_3_u = LinearVariationalSolver(prob_3_u, solver_parameters=params)
 
-
+unp1, Dnp1 = split(Unp1)
 def proj_u():
     return (-div(v)*g*Dnp1*dx
             #+ inner(v, f*perp(unp1))*dx # doesn't make sense in 2d?
@@ -206,7 +206,7 @@ out_file = File("solution.pvd")
 out_file.write(D, u)
 
 
-
+unp1, Dnp1 = Unp1.subfunctions
 while t < T - 0.5*dt:
 
     Dn.assign(Dnp1)
