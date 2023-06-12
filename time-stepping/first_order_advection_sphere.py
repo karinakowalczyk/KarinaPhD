@@ -18,6 +18,7 @@ mesh = IcosahedralSphereMesh(radius=R0,
                             distribution_parameters = distribution_parameters)
 x = SpatialCoordinate(mesh)
 mesh.init_cell_orientations(x)
+n = FacetNormal(mesh)
 # We set up a function space of discontinous bilinear elements for :math:`q`, and
 # a vector-valued continuous function space for our velocity field. ::
 
@@ -42,7 +43,7 @@ ubar = Function(V1).interpolate(u_expr)
 file.write(ubar)
 
 D_expr = - ((R0 * Omega * u_max + u_max*u_max/2.0)*(x[2]*x[2]/(R0*R0)))/g
-D = Function(V2).interpolate(D_expr)
+D = Function(V2, name = "D").interpolate(D_expr)
 
 
 # define velocity field to be advected:
@@ -60,20 +61,38 @@ print("etheta norm:", norm(e_theta))
 F_theta = F_0*exp(-dist_sphere(x,x_c)**2/l_0**2)
 F_theta_c = conditional(dist_sphere(x,x_c) > 0.5, 0., F_theta)
 velocity = F_theta_c*e_theta
-D.interpolate(F_theta_c)
-u = Function(V1_broken).interpolate(velocity)
+
+u = Function(V1_broken, name = "u").interpolate(velocity)
 print("u is set", norm(u), norm(D))
 
 D_init = Function(V2).assign(D)
 u_init = Function(V1_broken).assign(u)
 file = File('init.pvd')
 file.write(D_init, u_init)
-   
-# Next we'll create a list to store the function values at every timestep so that
-# we can make a movie of them later. ::
 
-Ds = []
-us =[]
+T = 2*86400.
+dt = 360.
+dtc = Constant(dt)
+
+def both(u):
+    return 2*avg(u)
+
+# compute COURANT number
+DG0 = FunctionSpace(mesh, "DG", 0)
+One = Function(DG0).assign(1.0)
+unn = 0.5*(inner(-u, n) + abs(inner(-u, n))) # gives fluxes *into* cell only
+v = TestFunction(DG0)
+Courant_num = Function(DG0, name="Courant numerator")
+Courant_num_form = dt*(both(unn*v)*dS)
+
+Courant_denom = Function(DG0, name="Courant denominator")
+assemble(One*v*dx, tensor=Courant_denom)
+Courant = Function(DG0, name="Courant")
+
+assemble(Courant_num_form, tensor=Courant_num)
+courant_frac = Function(DG0).interpolate(Courant_num/Courant_denom)
+Courant.assign(courant_frac)
+
 
 # We will run for time :math:`2\pi`, a full rotation.  We take 600 steps, giving
 # a timestep close to the CFL limit.  We declare an extra variable ``dtc``; for
@@ -82,10 +101,8 @@ us =[]
 # condition, :math:`q_\mathrm{in}`.  In general, this would be a ``Function``, but
 # here we just use a ``Constant`` value. ::
 
-T = 2*pi
-dt = T/600.0
-dtc = Constant(dt)
-D_in = Constant(1.0)
+
+
 
 # Now we declare our variational forms.  Solving for :math:`\Delta q` at each
 # stage, the explicit timestepping scheme means that the left hand side is just a
@@ -98,6 +115,7 @@ a_D = phi*dD_trial*dx
 du_trial = TrialFunction(V1_broken)
 w = TestFunction(V1_broken)
 a_u = inner(w, du_trial)*dx
+
 # The right-hand-side is more interesting.  We define ``n`` to be the built-in
 # ``FacetNormal`` object; a unit normal vector that can be used in integrals over
 # exterior and interior facets.  We next define ``un`` to be an object which is
@@ -178,9 +196,9 @@ solv_3_u = LinearVariationalSolver(prob_3_u, solver_parameters=params)
 
 t = 0.0
 step = 0
-output_freq = 20
+output_freq = 2
 out_file = File("Results/advection_sphere.pvd")
-out_file.write(D, u)
+out_file.write(D, u, Courant)
 while t < T - 0.5*dt:
     solv_1_D.solve()
     D1.assign(D + dD)
@@ -205,7 +223,7 @@ while t < T - 0.5*dt:
     t += dt
 
     if step % output_freq == 0:
-        out_file.write(D,u)
+        out_file.write(D,u, Courant)
         print("t=", t)
 
 # To check our solution, we display the normalised :math:`L^2` error, by comparing
