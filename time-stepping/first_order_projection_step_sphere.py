@@ -46,26 +46,22 @@ file = File('ubar.pvd')
 ubar = Function(V1).interpolate(u_expr)
 file.write(ubar)
 
-D_expr = - ((R0 * Omega * u_max + u_max*u_max/2.0)*(x[2]*x[2]/(R0*R0)))/g
-Dn = Function(V2, name = "D").interpolate(D_expr)
 
 # define velocity field to be advected:
-#x_c = as_vector([1., 0., 0.])
-#F_0 = Constant(3.)
-#l_0 = Constant(0.25)
+x_c = as_vector([1., 0., 0.])
+F_0 = Constant(3.)
+l_0 = Constant(0.25)
 
-#def dist_sphere(x, x_c):
-#    return acos(dot(x/R0,x_c))
-
-#e_theta = as_vector([x[0]*x[2], x[1]*x[2], -x[0]**2 - x[1]**2])
-#e_theta = e_theta/(norm(e_theta)+1e-8)
-#print("etheta norm:", norm(e_theta))
-
-#F_theta = F_0*exp(-dist_sphere(x,x_c)**2/l_0**2)
-#F_theta_c = conditional(dist_sphere(x,x_c) > 0.5, 0., F_theta)
-#velocity = F_theta_c*e_theta
+def dist_sphere(x, x_c):
+    return acos(dot(x/R0,x_c))
 
 
+F_theta = F_0*exp(-dist_sphere(x,x_c)**2/l_0**2)
+D_expr = conditional(dist_sphere(x,x_c) > 0.5, 0., F_theta)
+
+#D_expr = - ((R0 * Omega * u_max + u_max*u_max/2.0)*(x[2]*x[2]/(R0*R0)))/g
+Dn = Function(V2, name = "D").interpolate(D_expr)
+Dbar = Function(V2).assign(Dn)
 #un starts as ubar, not this example
 
 #un = Function(V1_broken, name = "u").interpolate(velocity)
@@ -79,17 +75,16 @@ Dnp1.assign(Dn)
 unp1.assign(un)
 
 
-Dbar = Function(V2).assign(Dnp1)
+
 
 #to be the solutions, initialised with un, Dn
-D = Function(V2).assign(Dnp1)
-u = Function(V1_broken).project(unp1)
-D_init = Function(V2).assign(D)
-u_init = Function(V1_broken).assign(u)
+D = Function(V2).assign(Dn)
+u = Function(V1_broken).project(un)
 
 
-T = 2*86400.
-dt = 360.
+
+T = 86400.
+dt = 18.
 dtc = Constant(dt)
 
 
@@ -123,19 +118,12 @@ outward_normals = CellNormal(mesh)
 def perp(u):
     return cross(outward_normals, u)
 
-L1test = dtc*(D*div(phi*ubar)*dx
-          #- conditional(dot(u, n) < 0, phi*dot(u, n)*q_in, 0.0)*ds
-          #- conditional(dot(u, n) > 0, phi*dot(u, n)*q, 0.0)*ds
-          - (phi('+') - phi('-'))*(unn('+')*D('+') - unn('-')*D('-'))*dS)
+#equations for the advection step
 def eq_D(ubar):
     uup = 0.5 * (dot(ubar, n) + abs(dot(ubar, n)))
     return (inner(grad(phi), ubar)*D*dx
             - jump(phi)*(uup('+')*D('+')
                             - uup('-')*D('-'))*dS)
-
-def perp_u_upwind(u):
-    Upwind = 0.5 * (sign(dot(u, n)) + 1)
-    return Upwind('+')*perp(u('+')) + Upwind('-')*perp(u('-'))
 
 def adv_u(ubar):
     unn = 0.5*(dot(ubar, n) + abs(dot(ubar, n)))
@@ -143,6 +131,7 @@ def adv_u(ubar):
     return(-inner(div(outer(w, ubar)), u)*dx
            +dot(jump(w), (unn('+')*u('+') - unn('-')*u('-')))*dS
     )
+
 L1_D = dtc*(eq_D(ubar))
 
 eq_u = adv_u(ubar)
@@ -188,6 +177,8 @@ solv_3_u = LinearVariationalSolver(prob_3_u, solver_parameters=params)
 unp1, Dnp1 = split(Unp1)
 Omega = Constant(7.292e-5)  # rotation rate
 f = 2*Omega*x[2]/Constant(R0)  # Coriolis parameter
+
+v, rho = TestFunctions(W)
 def proj_u():
     return (-div(v)*g*Dnp1*dx
             + inner(v, f*perp(unp1))*dx 
@@ -195,12 +186,12 @@ def proj_u():
 
 def proj_D(Dbar):
     uup = 0.5 * (dot(unp1, n) + abs(dot(unp1, n)))
-    return (inner(grad(rho), unp1)*Dbar*dx
+    return (inner(grad(rho), unp1*Dbar)*dx
             - jump(rho)*(uup('+')*Dbar('+')
                             - uup('-')*Dbar('-'))*dS)
 
 #make signs consistent
-v, rho = TestFunctions(W)
+
 a_proj_u = inner(v, unp1 - u)*dx + dtc* proj_u()
 
 a_proj_D = rho*(Dnp1 -D)*dx - dtc*proj_D(Dbar)
@@ -218,17 +209,15 @@ solver_proj = NonlinearVariationalSolver(prob, solver_parameters=params)
 t = 0.0
 step = 0
 output_freq = 20
-out_file = File("solution.pvd")
-out_file.write(D, u)
+out_file = File("Results/proj_solution.pvd")
+out_file.write(Dn, un)
 
 
 unp1, Dnp1 = Unp1.subfunctions
 while t < T - 0.5*dt:
 
-    Dn.assign(Dnp1)
-    un.assign(unp1)
-    Dbar.assign(Dn)
-    ubar.assign(un)
+    #u.project(un)
+    #D.assign(Dn)
 
     solv_1_D.solve()
     D1.assign(D + dD)
@@ -248,18 +237,26 @@ while t < T - 0.5*dt:
     solv_3_u.solve()
     u.assign((1.0/3.0)*u + (2.0/3.0)*(u2 + du))
 
+
     # PROJECTION STEP
     Dnp1.assign(D)
     unp1.project(u) #u from discontinuous space
 
     solver_proj.solve()
 
+    Dn.assign(Dnp1)
+    un.assign(unp1)
+    Dbar.assign(Dn)
+    ubar.assign(un)
+
     step += 1
     t += dt
 
     if step % output_freq == 0:
-        out_file.write(D,u)
+        out_file.write(Dn, un)
         print("t=", t)
+
+
 
 
 
