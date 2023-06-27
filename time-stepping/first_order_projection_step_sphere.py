@@ -1,10 +1,4 @@
 from firedrake import *
-import math
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-import numpy as np
-
-
 
 R0 = 6371220.
 H = Constant(5960.)
@@ -57,12 +51,24 @@ def dist_sphere(x, x_c):
 
 
 F_theta = F_0*exp(-dist_sphere(x,x_c)**2/l_0**2)
-D_expr = conditional(dist_sphere(x,x_c) > 0.5, 0., F_theta)
+#D_expr = conditional(dist_sphere(x,x_c) > 0.5, 0., F_theta)
 
-#D_expr = - ((R0 * Omega * u_max + u_max*u_max/2.0)*(x[2]*x[2]/(R0*R0)))/g
+D_expr = - ((R0 * Omega * u_max + u_max*u_max/2.0)*(x[2]*x[2]/(R0*R0)))/g
 Dn = Function(V2, name = "D").interpolate(D_expr)
-Dbar = Function(V2).assign(Dn)
-#un starts as ubar, not this example
+
+# Topography.
+b = Function(V2, name="Topography")
+
+rl = pi/9.0
+lambda_x = atan_2(x[1]/R0, x[0]/R0)
+lambda_c = -pi/2.0
+phi_x = asin(x[2]/R0)
+phi_c = pi/6.0
+minarg = min_value(pow(rl, 2),
+                pow(phi_x - phi_c, 2) + pow(lambda_x - lambda_c, 2))
+bexpr = 2000.0*(1 - sqrt(minarg)/rl)
+b.interpolate(bexpr)
+Dbar = Function(V2).assign(H-b)
 
 #un = Function(V1_broken, name = "u").interpolate(velocity)
 un = Function(V1, name = "u").assign(ubar)
@@ -81,12 +87,31 @@ unp1.assign(un)
 D = Function(V2).assign(Dn)
 u = Function(V1_broken).project(un)
 
-
-
 T = 86400.
 dt = 18.
 dtc = Constant(dt)
+t_inner = 0.
+dt_inner = dt/10.
+dt_inner_c = Constant(dt_inner)
 
+def both(u):
+    return 2*avg(u)
+
+# compute COURANT number
+DG0 = FunctionSpace(mesh, "DG", 0)
+One = Function(DG0).assign(1.0)
+unn = 0.5*(inner(-un, n) + abs(inner(-un, n))) # gives fluxes *into* cell only
+v = TestFunction(DG0)
+Courant_num = Function(DG0, name="Courant numerator")
+Courant_num_form = dt*(both(unn*v)*dS)
+
+Courant_denom = Function(DG0, name="Courant denominator")
+assemble(One*v*dx, tensor=Courant_denom)
+Courant = Function(DG0, name="Courant")
+
+assemble(Courant_num_form, tensor=Courant_num)
+courant_frac = Function(DG0).interpolate(Courant_num/Courant_denom)
+Courant.assign(courant_frac)
 
 
 # Now we declare our variational forms.  Solving for :math:`\Delta q` at each
@@ -119,11 +144,11 @@ def perp(u):
     return cross(outward_normals, u)
 
 #equations for the advection step
-def eq_D(ubar):
+def eq_D(ubar, Dbar):
     uup = 0.5 * (dot(ubar, n) + abs(dot(ubar, n)))
-    return (inner(grad(phi), ubar)*D*dx
-            - jump(phi)*(uup('+')*D('+')
-                            - uup('-')*D('-'))*dS)
+    return (-inner(grad(phi), ubar)*(D-Dbar)*dx
+            + jump(phi)*(uup('+')*(D-Dbar)('+')
+                            - uup('-')*(D-Dbar)('-'))*dS)
 
 def adv_u(ubar):
     unn = 0.5*(dot(ubar, n) + abs(dot(ubar, n)))
@@ -132,7 +157,7 @@ def adv_u(ubar):
            +dot(jump(w), (unn('+')*u('+') - unn('-')*u('-')))*dS
     )
 
-L1_D = dtc*(eq_D(ubar))
+L1_D = dtc*(-eq_D(ubar, Dbar))
 
 eq_u = adv_u(ubar)
 #adjust to sphere
@@ -140,7 +165,7 @@ unn = 0.5*(dot(ubar, n) + abs(dot(ubar, n)))
 eq_u += unn('+')*inner(w('-'), n('+')+n('-'))*inner(u('+'), n('+'))*dS
 eq_u += unn('-')*inner(w('+'), n('+')+n('-'))*inner(u('-'), n('-'))*dS
 
-L1_u = dtc*(-adv_u(ubar))
+L1_u = dtc*(-eq_u)
 # In our Runge-Kutta scheme, the first step uses :math:`q^n` to obtain
 # :math:`q^{(1)}`.  We therefore declare similar forms that use :math:`q^{(1)}`
 # to obtain :math:`q^{(2)}`, and :math:`q^{(2)}` to obtain :math:`q^{n+1}`. We
@@ -186,20 +211,32 @@ def proj_u():
 
 def proj_D(Dbar):
     uup = 0.5 * (dot(unp1, n) + abs(dot(unp1, n)))
-    return (inner(grad(rho), unp1*Dbar)*dx
-            - jump(rho)*(uup('+')*Dbar('+')
+    return (-inner(grad(rho), unp1)*Dbar*dx
+            + jump(rho)*(uup('+')*Dbar('+')
                             - uup('-')*Dbar('-'))*dS)
 
 #make signs consistent
 
-a_proj_u = inner(v, unp1 - u)*dx + dtc* proj_u()
+a_proj_u = inner(v, unp1 - u)*dx + dtc*proj_u()
 
-a_proj_D = rho*(Dnp1 -D)*dx - dtc*proj_D(Dbar)
+a_proj_D = rho*(Dnp1 -D)*dx + dtc*proj_D(Dbar)
 
 a_proj = a_proj_u + a_proj_D
 
 prob = NonlinearVariationalProblem(a_proj, Unp1)
-solver_proj = NonlinearVariationalSolver(prob, solver_parameters=params)
+
+hparams = {
+    "snes_lag_jacobian": -2,
+    'mat_type': 'matfree',
+    'ksp_type': 'gmres',
+    #'ksp_monitor': None,
+    'pc_type': 'python',
+    'pc_python_type': 'firedrake.HybridizationPC',
+    'hybridization': {'ksp_type': 'preonly',
+                      'pc_type': 'lu'
+                      }}
+
+solver_proj = NonlinearVariationalSolver(prob, solver_parameters=hparams)
 
 
 # We now run the time loop.  This consists of three Runge-Kutta stages, and every
@@ -210,32 +247,35 @@ t = 0.0
 step = 0
 output_freq = 20
 out_file = File("Results/proj_solution.pvd")
-out_file.write(Dn, un)
+out_file.write(Dn, un, Courant)
 
+nonlinear = False
 
 unp1, Dnp1 = Unp1.subfunctions
 while t < T - 0.5*dt:
 
-    #u.project(un)
-    #D.assign(Dn)
+    t_inner = 0.
+    u.project(un)
+    D.assign(Dn)
 
-    solv_1_D.solve()
-    D1.assign(D + dD)
+    if nonlinear: 
+        solv_1_D.solve()
+        D1.assign(D + dD)
 
-    solv_2_D.solve()
-    D2.assign(0.75*D + 0.25*(D1 + dD))
+        solv_2_D.solve()
+        D2.assign(0.75*D + 0.25*(D1 + dD))
 
-    solv_3_D.solve()
-    D.assign((1.0/3.0)*D + (2.0/3.0)*(D2 + dD))
+        solv_3_D.solve()
+        D.assign((1.0/3.0)*D + (2.0/3.0)*(D2 + dD))
 
-    solv_1_u.solve()
-    u1.assign(u + du)
+        solv_1_u.solve()
+        u1.assign(u + du)
 
-    solv_2_u.solve()
-    u2.assign(0.75*u + 0.25*(u1 + du))
+        solv_2_u.solve()
+        u2.assign(0.75*u + 0.25*(u1 + du))
 
-    solv_3_u.solve()
-    u.assign((1.0/3.0)*u + (2.0/3.0)*(u2 + du))
+        solv_3_u.solve()
+        u.assign((1.0/3.0)*u + (2.0/3.0)*(u2 + du))
 
 
     # PROJECTION STEP
@@ -246,17 +286,16 @@ while t < T - 0.5*dt:
 
     Dn.assign(Dnp1)
     un.assign(unp1)
-    Dbar.assign(Dn)
     ubar.assign(un)
 
     step += 1
     t += dt
 
     if step % output_freq == 0:
-        out_file.write(Dn, un)
+
+        assemble(Courant_num_form, tensor=Courant_num)
+        courant_frac = Function(DG0).interpolate(Courant_num/Courant_denom)
+        Courant.assign(courant_frac)
+
+        out_file.write(Dn, un, Courant)
         print("t=", t)
-
-
-
-
-
