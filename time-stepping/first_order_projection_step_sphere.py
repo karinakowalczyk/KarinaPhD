@@ -19,6 +19,7 @@ n = FacetNormal(mesh)
 # We set up a function space of discontinous bilinear elements for :math:`q`, and
 # a vector-valued continuous function space for our velocity field. ::
 
+V0 = FunctionSpace(mesh, "CG", degree=3)
 #velocity space
 element = FiniteElement("BDM", triangle, degree=2)
 V1_broken = FunctionSpace(mesh, BrokenElement(element))
@@ -53,8 +54,7 @@ def dist_sphere(x, x_c):
 F_theta = F_0*exp(-dist_sphere(x,x_c)**2/l_0**2)
 #D_expr = conditional(dist_sphere(x,x_c) > 0.5, 0., F_theta)
 
-D_expr = - ((R0 * Omega * u_max + u_max*u_max/2.0)*(x[2]*x[2]/(R0*R0)))/g
-Dn = Function(V2, name = "D").interpolate(D_expr)
+D_expr = H - ((R0 * Omega * u_max + u_max*u_max/2.0)*(x[2]*x[2]/(R0*R0)))/g
 
 # Topography.
 b = Function(V2, name="Topography")
@@ -68,7 +68,8 @@ minarg = min_value(pow(rl, 2),
                 pow(phi_x - phi_c, 2) + pow(lambda_x - lambda_c, 2))
 bexpr = 2000.0*(1 - sqrt(minarg)/rl)
 b.interpolate(bexpr)
-Dbar = Function(V2).assign(H-b)
+Dn = Function(V2, name = "D").interpolate(D_expr - b)
+Dbar = Function(V2).assign(H)
 
 #un = Function(V1_broken, name = "u").interpolate(velocity)
 un = Function(V1, name = "u").assign(ubar)
@@ -80,15 +81,27 @@ unp1, Dnp1 = Unp1.subfunctions
 Dnp1.assign(Dn)
 unp1.assign(un)
 
+outward_normals = CellNormal(mesh)
+def perp(u):
+    return cross(outward_normals, u)
 
+q = TrialFunction(V0)
+p = TestFunction(V0)
 
+qn = Function(V0, name="Relative Vorticity")
+veqn = q*p*dx + inner(grad(p), un)*dx
+vprob = LinearVariationalProblem(lhs(veqn), rhs(veqn), qn)
+qparams = {'ksp_type':'cg'}
+qsolver = LinearVariationalSolver(vprob,
+                                     solver_parameters=qparams)
+qsolver.solve()
 
 #to be the solutions, initialised with un, Dn
 D = Function(V2).assign(Dn)
 u = Function(V1_broken).project(un)
 
-T = 86400.
-dt = 18.
+T = 15*86400.
+dt = 36.
 dtc = Constant(dt)
 t_inner = 0.
 dt_inner = dt/10.
@@ -139,9 +152,7 @@ unn = 0.5*(dot(ubar, n) + abs(dot(ubar, n)))
 # We now define our right-hand-side form ``L1`` as :math:`\Delta t` times the
 # sum of four integrals.
 
-outward_normals = CellNormal(mesh)
-def perp(u):
-    return cross(outward_normals, u)
+
 
 #equations for the advection step
 def eq_D(ubar, Dbar):
@@ -205,7 +216,7 @@ f = 2*Omega*x[2]/Constant(R0)  # Coriolis parameter
 
 v, rho = TestFunctions(W)
 def proj_u():
-    return (-div(v)*g*Dnp1*dx
+    return (-div(v)*g*(Dnp1+b)*dx
             + inner(v, f*perp(unp1))*dx 
     )
 
@@ -247,11 +258,12 @@ t = 0.0
 step = 0
 output_freq = 20
 out_file = File("Results/proj_solution.pvd")
-out_file.write(Dn, un, Courant)
+out_file.write(Dn, un, Courant, qn)
 
-nonlinear = False
+nonlinear = True
 
 unp1, Dnp1 = Unp1.subfunctions
+#for step in ProgressBar(f'average forward').iter(range(ns)):
 while t < T - 0.5*dt:
 
     t_inner = 0.
@@ -288,14 +300,20 @@ while t < T - 0.5*dt:
     un.assign(unp1)
     ubar.assign(un)
 
+    
+
     step += 1
     t += dt
 
     if step % output_freq == 0:
 
+        print(assemble((0.5*inner(un,un)*Dn + 0.5* g * (Dn+b)**2)*dx))
+
         assemble(Courant_num_form, tensor=Courant_num)
         courant_frac = Function(DG0).interpolate(Courant_num/Courant_denom)
         Courant.assign(courant_frac)
 
-        out_file.write(Dn, un, Courant)
+        qsolver.solve()
+
+        out_file.write(Dn, un, Courant, qn)
         print("t=", t)
