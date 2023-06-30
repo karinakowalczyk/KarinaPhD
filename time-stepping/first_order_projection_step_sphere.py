@@ -89,7 +89,7 @@ q = TrialFunction(V0)
 p = TestFunction(V0)
 
 qn = Function(V0, name="Relative Vorticity")
-veqn = q*p*dx + inner(grad(p), un)*dx
+veqn = q*p*dx + inner(perp(grad(p)), un)*dx
 vprob = LinearVariationalProblem(lhs(veqn), rhs(veqn), qn)
 qparams = {'ksp_type':'cg'}
 qsolver = LinearVariationalSolver(vprob,
@@ -101,7 +101,7 @@ D = Function(V2).assign(Dn)
 u = Function(V1_broken).project(un)
 
 T = 15*86400.
-dt = 36.
+dt = 180.
 dtc = Constant(dt)
 t_inner = 0.
 dt_inner = dt/10.
@@ -316,4 +316,4 @@ while t < T - 0.5*dt:
         qsolver.solve()
 
         out_file.write(Dn, un, Courant, qn)
-        print("t=", t)
+        print("t =", t)
