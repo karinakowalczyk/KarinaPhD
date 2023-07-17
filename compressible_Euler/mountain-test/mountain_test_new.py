@@ -58,7 +58,7 @@ coord = SpatialCoordinate(ext_mesh)
 a = 1000.
 xc = L/2.
 x, z = SpatialCoordinate(ext_mesh)
-hm = 250.
+hm = 1.
 zs = hm*a**2/((x-xc)**2 + a**2)
 xexpr = as_vector([x, z + ((H-z)/H)*zs])
 
@@ -70,7 +70,7 @@ mesh.coordinates.assign(f_mesh)
 
 # initialise background temperature
 # N^2 = (g/theta)dtheta/dz => dtheta/dz = theta N^2g => theta=theta_0exp(N^2gz)
-Tsurf = 288.
+Tsurf = 300.
 N = parameters.N
 x, z = SpatialCoordinate(mesh)
 thetab = Tsurf*exp(N**2*z/g)
@@ -87,13 +87,15 @@ Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
 Problem.H = H  # edit later in class
 Problem.u0 = u0
 Problem.solver_params = sparameters_star
-Problem.path_out = "../Results/mountainNH"
+Problem.path_out = "../Results/nonhydrostatic_mountain/mountainNH"
 Problem.thetab = thetab
 Problem.theta_init_pert = 0
 Problem.sponge_fct = True
+Problem.checkpointing = True
+Problem.checkpoint_path = "../Results/nonhydrostatic_mountain/checkpointing/functions.h5"
 
 dt = 5.
-tmax = 15000.
+tmax = 9000.
 dumpt = 10.
 
 Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt)

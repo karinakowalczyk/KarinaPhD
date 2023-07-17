@@ -1,7 +1,7 @@
 from firedrake import (PeriodicRectangleMesh, ExtrudedMesh,
                        SpatialCoordinate, Function, as_vector, exp,
                        DistributedMeshOverlapType, Constant, sqrt,
-                       FacetNormal
+                       FacetNormal, PeriodicIntervalMesh
                        )
 from tools import Parameters, compressibleEulerEquations
 
@@ -43,8 +43,8 @@ c_p = parameters.cp
 # build volume mesh
 L = 240e3
 H = 50e3  # Height position of the model top
-delx = 2000
-delz = 250
+delx = 2000*2
+delz = 250*2
 nlayers = H/delz  # horizontal layers
 columns = L/delx  # number of columns
 distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
@@ -52,14 +52,14 @@ m = PeriodicIntervalMesh(columns, L, distribution_parameters=distribution_parame
 mesh = ExtrudedMesh(m, layers=nlayers, layer_height=delz)
 
 
-distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
+#distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
 
-m = PeriodicRectangleMesh(base_columns, ny=1, Lx=L, Ly=1.0e-3*L,
-                          direction="both",
-                          quadrilateral=True,
-                          distribution_parameters=distribution_parameters)
-m.coordinates.dat.data[:, 0] -= L/2
-m.coordinates.dat.data[:, 1] -= 1.0e-3*L/2
+#m = PeriodicRectangleMesh(base_columns, ny=1, Lx=L, Ly=1.0e-3*L,
+#                          direction="both",
+#                          quadrilateral=True,
+#                          distribution_parameters=distribution_parameters)
+#m.coordinates.dat.data[:, 0] -= L/2
+#m.coordinates.dat.data[:, 1] -= 1.0e-3*L/2
 
 
 # build volume mesh
@@ -67,7 +67,7 @@ n = FacetNormal(mesh)
 
 # making a mountain out of a molehill
 a = 10000.
-xc = 0.
+xc = L/2.
 x, y, z = SpatialCoordinate(mesh)
 hm = 1.
 zs = hm*a**2/((x-xc)**2 + a**2)
@@ -103,7 +103,7 @@ Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree, s
 Problem.H = H  # edit later in class
 Problem.u0 = u0
 Problem.solver_params = sparameters_star
-Problem.path_out = "../Results/mountainH"
+Problem.path_out = "../Results/hydrostatic_mountain/mountainH"
 Problem.thetab = thetab
 Problem.theta_init_pert = 0
 Problem.sponge_fct = True

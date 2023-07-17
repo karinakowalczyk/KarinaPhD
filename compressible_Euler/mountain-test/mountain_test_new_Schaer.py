@@ -44,8 +44,8 @@ c_p = parameters.cp
 # build volume mesh
 L = 100000.
 H = 30000.  # Height position of the model top
-delx = 400
-delz = 250
+delx = 500*2
+delz = 300*2
 nlayers = H/delz  # horizontal layers
 columns = L/delx  # number of columns
 distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
@@ -83,13 +83,13 @@ Problem = compressibleEulerEquations(mesh, vertical_degree, horizontal_degree)
 Problem.H = H  # edit later in class
 Problem.u0 = u0
 Problem.solver_params = sparameters_star
-Problem.path_out = "../Results/mountain_Schar"
+Problem.path_out = "../Results/Shar_mountain/mountain_Schar"
 Problem.thetab = thetab
 Problem.theta_init_pert = 0
 Problem.sponge_fct = True
 
 dt = 8.
-tmax = 8000.
-dumpt = 8.
+tmax = 18000.
+dumpt = 10*8.
 
 Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt)
