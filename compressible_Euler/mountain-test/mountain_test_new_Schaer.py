@@ -87,6 +87,8 @@ Problem.path_out = "../Results/Shar_mountain/mountain_Schar"
 Problem.thetab = thetab
 Problem.theta_init_pert = 0
 Problem.sponge_fct = True
+Problem.checkpointing = True
+Problem.checkpoint_path = "checkpointSH.h5"
 
 dt = 8.
 tmax = 18000.

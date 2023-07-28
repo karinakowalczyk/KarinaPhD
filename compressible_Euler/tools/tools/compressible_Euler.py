@@ -8,12 +8,13 @@ from firedrake import (SpatialCoordinate, Function, as_vector,
                        dx, dS_h, dS_v, ds_t, ds_b,
                        dot, sign, inner, grad,
                        curl, cross, jump, perp, div,
-                       File
+                       File, CheckpointFile
                        )
 from tools import (Parameters, build_spaces, build_spaces_slice_3D,
                    compressible_hydrostatic_balance_with_correct_pi_top,
                    thermodynamics_pi, apply_BC_def_mesh
                    )
+
 
 import numpy as np
 from petsc4py import PETSc
@@ -39,6 +40,8 @@ class compressibleEulerEquations:
         self.slice_3D = slice_3D
         self.n = FacetNormal(mesh)
         self.mesh_periodic = mesh_periodic
+        self.checkpointing = False
+        self.checkpoint_path= " "
         
         self.dim = self.mesh.topological_dimension()
         zvec = [0.0] * self.dim
@@ -69,8 +72,8 @@ class compressibleEulerEquations:
                     self.theta_b, self.rho0, self.lambdar0, self.Pi0, 
                     self.slice_3D)
         
-        Un = Function(self.W)
-        Unp1 = Function(self.W)
+        Un = Function(self.W, name = "Un")
+        Unp1 = Function(self.W, name = "Unp1")
         un, rhon, thetan, lambdarn = (Un).split()
         unp1, rhonp1, thetanp1, lambdarnp1 = split(Unp1)
 
@@ -220,11 +223,21 @@ class compressibleEulerEquations:
 
         tdump = 0.
         self.dT.assign(dt)
+       
 
         PETSc.Sys.Print('tmax', tmax, 'dt', dt)
         t = 0.
+        step = 0
+        idx_count =0
+
+        print("CHECKPOINTING")
+        with CheckpointFile(self.checkpoint_path, 'w') as afile:
+                            afile.save_mesh(self.mesh)
+                            afile.save_function(Un, idx = idx_count)
+        idx_count += 1 
 
         while t < tmax - 0.5*dt:
+
             PETSc.Sys.Print(t)
             t += dt
             tdump += dt
@@ -232,6 +245,13 @@ class compressibleEulerEquations:
             self.solver.solve()
 
             Un.assign(Unp1)
+            
+            if self.checkpointing:
+                if step%50==0:
+                    print("CHECKPOINTING")
+                    with CheckpointFile(self.checkpoint_path, 'w') as afile:
+                            afile.save_function(Un, idx = idx_count)
+                    idx_count += 1 
 
             rhon_pert.assign(rhon - self.rho0)
             thetan_pert.assign(thetan - self.theta_b)
@@ -242,7 +262,9 @@ class compressibleEulerEquations:
 
             if tdump > dumpt - dt*0.5:
                 file_out.write(un, rhon_pert, thetan_pert)
-                # file_gw.write(un, rhon, thetan, lambdarn)
-                # file2.write(un_pert, rhon_pert, thetan_pert)
+
                 tdump -= dumpt
             PETSc.Sys.Print(self.solver.snes.getIterationNumber())
+            step+=1
+            
+        print("Total index count = ", idx_count)

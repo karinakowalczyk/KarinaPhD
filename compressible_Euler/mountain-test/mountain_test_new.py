@@ -51,7 +51,7 @@ columns = L/delx  # number of columns
 
 # build mesh
 m = PeriodicIntervalMesh(columns, L)
-ext_mesh = ExtrudedMesh(m, layers=nlayers, layer_height=H/nlayers)
+ext_mesh = ExtrudedMesh(m, layers=nlayers, layer_height=H/nlayers, name="mesh")
 
 # set terrain-following coordinates
 coord = SpatialCoordinate(ext_mesh)
@@ -92,10 +92,10 @@ Problem.thetab = thetab
 Problem.theta_init_pert = 0
 Problem.sponge_fct = True
 Problem.checkpointing = True
-Problem.checkpoint_path = "../Results/nonhydrostatic_mountain/checkpointing/functions.h5"
+Problem.checkpoint_path = "checkpointNHMW.h5"
 
 dt = 5.
 tmax = 9000.
-dumpt = 10.
+dumpt = 10*5.
 
 Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt)

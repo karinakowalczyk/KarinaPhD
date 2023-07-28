@@ -39,10 +39,10 @@ c_p = parameters.cp
 # build volume mesh
 L = 20000.
 H = 20000.  # Height position of the model top
-delx = 100*2
-delz = 100*2
-nlayers = H/delz  # horizontal layers
-columns = L/delx  # number of columns
+delx = 150
+delz = 150
+nlayers = H/delz+1  # horizontal layers
+columns = L/delx+1  # number of columns
 distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
 m = PeriodicIntervalMesh(columns, L, distribution_parameters=distribution_parameters)
 mesh = ExtrudedMesh(m, layers=nlayers, layer_height=delz)
@@ -51,7 +51,7 @@ mesh = ExtrudedMesh(m, layers=nlayers, layer_height=delz)
 a = 1000.
 xc = L/2.
 x, z = SpatialCoordinate(mesh)
-hm = 1000.
+hm = 250.
 zs = hm*a**2/((x-xc)**2 + a**2)
 xexpr = as_vector([x, z + ((H-z)/H)*zs])
 Vc = mesh.coordinates.function_space()
@@ -88,8 +88,8 @@ Problem.thetab = thetab
 Problem.theta_init_pert = thetab_pert
 Problem.sponge_fct = True
 
-dt = 2.
+dt = 4.
 tmax = 1000.
-dumpt = 2.
+dumpt = 10.
 
 Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt)

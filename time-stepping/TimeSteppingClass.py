@@ -1,75 +1,45 @@
 from firedrake import * 
 
-class TimeStepping:
+class SWEWithProjection:
 
-    def __init__(self, dtc):
+    def __init__(self, mesh, dtc, u_expr, D_expr, bexpr, H, second_order = False):
+
         self.dtc = dtc
+        self.mesh = mesh
+        self.second_order = second_order
         R0 = 6371220.
-        H = Constant(5960.)
         Omega = Constant(7.292e-5)  # rotation rate
         #f = 2*Omega*z/Constant(R0)  # Coriolis parameter
         g = Constant(9.8)  # Gravitational constant
-
-        distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
-
-        mesh = IcosahedralSphereMesh(radius=R0,
-                                    degree=1,
-                                    refinement_level=4,
-                                    distribution_parameters = distribution_parameters)
-        x = SpatialCoordinate(mesh)
-        mesh.init_cell_orientations(x)
         n = FacetNormal(mesh)
+        
 
         # We set up a function space of discontinous bilinear elements for :math:`q`, and
         # a vector-valued continuous function space for our velocity field. ::
 
-        V0 = FunctionSpace(mesh, "CG", degree=3)
+        self.V0 = FunctionSpace(mesh, "CG", degree=3)
         #velocity space
         element = FiniteElement("BDM", triangle, degree=2)
         V1_broken = FunctionSpace(mesh, BrokenElement(element))
         V1 = FunctionSpace(mesh, element)
         #space for height:
         V2 = FunctionSpace(mesh, "DG", 1)
-        W_broken = MixedFunctionSpace((V1_broken,V2))
         W = MixedFunctionSpace((V1,V2))
 
         # We set up the initial velocity field using a simple analytic expression. ::
 
         # SET UP EXAMPLE
+        x = SpatialCoordinate(mesh)
+        #mesh.init_cell_orientations(x)
 
-        u_0 = 20.0  # maximum amplitude of the zonal wind [m/s]
-        u_max = Constant(u_0)
-        #solid body rotation (?)
-        u_expr = as_vector([-u_max*x[1]/R0, u_max*x[0]/R0, 0.0])
-        file = File('ubar.pvd')
         self.ubar = Function(V1).interpolate(u_expr)
 
-        # define velocity field to be advected:
-        x_c = as_vector([1., 0., 0.])
-        F_0 = Constant(3.)
-        l_0 = Constant(0.25)
-
-        def dist_sphere(x, x_c):
-            return acos(dot(x/R0,x_c))
-
-
-        F_theta = F_0*exp(-dist_sphere(x,x_c)**2/l_0**2)
-        #D_expr = conditional(dist_sphere(x,x_c) > 0.5, 0., F_theta)
-
-        D_expr = H - ((R0 * Omega * u_max + u_max*u_max/2.0)*(x[2]*x[2]/(R0*R0)))/g
 
         # Topography.
+        
         b = Function(V2, name="Topography")
-
-        rl = pi/9.0
-        lambda_x = atan_2(x[1]/R0, x[0]/R0)
-        lambda_c = -pi/2.0
-        phi_x = asin(x[2]/R0)
-        phi_c = pi/6.0
-        minarg = min_value(pow(rl, 2),
-                        pow(phi_x - phi_c, 2) + pow(lambda_x - lambda_c, 2))
-        bexpr = 2000.0*(1 - sqrt(minarg)/rl)
         b.interpolate(bexpr)
+        self.b = b
         self.Dn = Function(V2, name = "D").interpolate(D_expr - b)
         self.Dbar = Function(V2).assign(H)
 
@@ -80,48 +50,24 @@ class TimeStepping:
         self.Unp1 = Function(W)
         self.unp1, self.Dnp1 = self.Unp1.subfunctions
 
+        if second_order:
+            self.Uhat = Function(W)
+            self.uhat, self.Dhat = self.Uhat.subfunctions
+
         self.Dnp1.assign(self.Dn)
         self.unp1.assign(self.un)
+
+        if second_order:
+             self.unph = Function(V1)
 
         outward_normals = CellNormal(mesh)
         def perp(u):
             return cross(outward_normals, u)
         
-        def compute_vorticity():
-            q = TrialFunction(V0)
-            p = TestFunction(V0)
-
-            qn = Function(V0, name="Relative Vorticity")
-            veqn = q*p*dx + inner(perp(grad(p)), un)*dx
-            vprob = LinearVariationalProblem(lhs(veqn), rhs(veqn), qn)
-            qparams = {'ksp_type':'cg'}
-            qsolver = LinearVariationalSolver(vprob,
-                                                solver_parameters=qparams)
-            qsolver.solve()
 
         #to be the solutions, initialised with un, Dn
         self.D = Function(V2).assign(self.Dn)
         self.u = Function(V1_broken).project(self.un)
-
-        def compute_Courant():
-            def both(u):
-                return 2*avg(u)
-
-            # compute COURANT number
-            DG0 = FunctionSpace(mesh, "DG", 0)
-            One = Function(DG0).assign(1.0)
-            unn = 0.5*(inner(-un, n) + abs(inner(-un, n))) # gives fluxes *into* cell only
-            v = TestFunction(DG0)
-            Courant_num = Function(DG0, name="Courant numerator")
-            Courant_num_form = dt*(both(unn*v)*dS)
-
-            Courant_denom = Function(DG0, name="Courant denominator")
-            assemble(One*v*dx, tensor=Courant_denom)
-            Courant = Function(DG0, name="Courant")
-
-            assemble(Courant_num_form, tensor=Courant_num)
-            courant_frac = Function(DG0).interpolate(Courant_num/Courant_denom)
-            Courant.assign(courant_frac)
 
 
         # Now we declare our variational forms.  Solving for :math:`\Delta q` at each
@@ -221,11 +167,17 @@ class TimeStepping:
                     + jump(rho)*(uup('+')*Dbar('+')
                                     - uup('-')*Dbar('-'))*dS)
 
+
         #make signs consistent
+        factor = Constant(1.)
+        if self.second_order:
+             factor = Constant(0.5)
+            
+        
+        a_proj_u = inner(v, self.unp1 - self.u)*dx + (dtc*factor)*proj_u()
+             
 
-        a_proj_u = inner(v, self.unp1 - self.u)*dx + dtc*proj_u()
-
-        a_proj_D = rho*(self.Dnp1 -self.D)*dx + dtc*proj_D(self.Dbar)
+        a_proj_D = rho*(self.Dnp1 -self.D)*dx + (dtc*factor)*proj_D(self.Dbar)
 
         a_proj = a_proj_u + a_proj_D
 
@@ -243,100 +195,47 @@ class TimeStepping:
                             }}
 
         self.solver_proj = NonlinearVariationalSolver(prob, solver_parameters=hparams)
+        
+        if second_order:
 
+            self.uhat, self.Dhat = split(self.Uhat)
+            #use REPLACE instead?
+            def second_order_first_eq_u():
+                return (-div(v)*g*(self.Dn+b)*dx
+                        + inner(v, f*perp(self.un))*dx 
+                )
 
-        # We now run the time loop.  This consists of three Runge-Kutta stages, and every
-        # 20 steps we write out the solution to file and print the current time to the
-        # terminal. ::
+            def second_order_first_eq_D(Dbar):
+                uup = 0.5 * (dot(self.un, n) + abs(dot(self.un, n)))
+                return (-inner(grad(rho), self.unp1)*Dbar*dx
+                        + jump(rho)*(uup('+')*Dbar('+')
+                                        - uup('-')*Dbar('-'))*dS)
+            
+            a_second_order_u = inner(v, self.uhat - self.un)*dx + (dtc/2)*second_order_first_eq_u()
 
+            a_second_order_D = rho*(self.Dhat -self.Dn)*dx + (dtc/2)*second_order_first_eq_D(self.Dbar)
+            a_second_order_1 = a_second_order_u+a_second_order_D
+            prob_2_order_1 = NonlinearVariationalProblem(a_second_order_1, self.Uhat)
+            self.solver_2ndorder_1st = NonlinearVariationalSolver(prob_2_order_1, solver_parameters=hparams)
         
         self.unp1, self.Dnp1 = self.Unp1.subfunctions
+
+        if self.second_order:
+            self.uhat, self.Dhat = self.Uhat.subfunctions
     
-    
-    def advection_equations(self):
-
-        dD_trial = TrialFunction(V2)
-        phi = TestFunction(V2)
-        a_D = phi*dD_trial*dx
-
-        du_trial = TrialFunction(V1_broken)
-        w = TestFunction(V1_broken)
-        a_u = inner(w, du_trial)*dx
-
-        n = FacetNormal(mesh)
-        unn = 0.5*(dot(ubar, n) + abs(dot(ubar, n)))
-
-        # We now define our right-hand-side form ``L1`` as :math:`\Delta t` times the
-        # sum of four integrals.
-
-
-        #equations for the advection step
-        def eq_D(ubar, Dbar):
-            uup = 0.5 * (dot(ubar, n) + abs(dot(ubar, n)))
-            return (-inner(grad(phi), ubar)*(D-Dbar)*dx
-                    + jump(phi)*(uup('+')*(D-Dbar)('+')
-                                    - uup('-')*(D-Dbar)('-'))*dS)
-
-        def adv_u(ubar):
-            unn = 0.5*(dot(ubar, n) + abs(dot(ubar, n)))
-
-            return(-inner(div(outer(w, ubar)), u)*dx
-                +dot(jump(w), (unn('+')*u('+') - unn('-')*u('-')))*dS
-            )
-        L1_D = dtc*(-eq_D(ubar, Dbar))
-
-        eq_u = adv_u(self.ubar)
-        #adjust to sphere
-        unn = 0.5*(dot(ubar, n) + abs(dot(ubar, n)))
-        eq_u += unn('+')*inner(w('-'), n('+')+n('-'))*inner(u('+'), n('+'))*dS
-        eq_u += unn('-')*inner(w('+'), n('+')+n('-'))*inner(u('-'), n('-'))*dS
-
-        L1_u = dtc*(-eq_u)
-
-        return(a_u, a_D, L1_u, L1_D)
-    
-    def advection_solvers_u(self, du):
-
-        # We now declare a variable to hold the temporary increments at each stage. ::
-
-        du = Function(V1_broken)
-
-        params = {'ksp_type': 'preonly', 'pc_type': 'bjacobi', 'sub_pc_type': 'ilu'}
-    
-        prob_1_u = LinearVariationalProblem(a_u, L1_u, du)
-        solv_1_u = LinearVariationalSolver(prob_1_u, solver_parameters=params)
-        prob_2_u = LinearVariationalProblem(a_u, L2_u, du)
-        solv_2_u = LinearVariationalSolver(prob_2_u, solver_parameters=params)
-        prob_3_u = LinearVariationalProblem(a_u, L3_u, du)
-        solv_3_u = LinearVariationalSolver(prob_3_u, solver_parameters=params)
-
-        return (solv_1_u, solv_2_u, solv_3_u)
-        
-    
-    def advection_solvers_D(dD):
-
-        D1 = Function(V2); D2 = Function(V2)
-        L2_D = replace(L1_D, {D: D1}); L3_D = replace(L1_D, {D: D2})
-
-        # We now declare a variable to hold the temporary increments at each stage. ::
-
-        dD = Function(V2)
-
-        params = {'ksp_type': 'preonly', 'pc_type': 'bjacobi', 'sub_pc_type': 'ilu'}
-        prob_1_D = LinearVariationalProblem(a_D, L1_D, dD)
-        solv_1_D = LinearVariationalSolver(prob_1_D, solver_parameters=params)
-        prob_2_D = LinearVariationalProblem(a_D, L2_D, dD)
-        solv_2_D = LinearVariationalSolver(prob_2_D, solver_parameters=params)
-        prob_3_D = LinearVariationalProblem(a_D, L3_D, dD)
-        solv_3_D = LinearVariationalSolver(prob_3_D, solver_parameters=params)
-
-        return (solv_1_D, solv_2_D, solv_3_D)
-
+    def second_order_1st_step(self,):
+         self.uhat.assign(self.un)
+         self.Dhat.assign(self.Dn)
+         self.solver_2ndorder_1st.solve()
             
     def advection_SSPRK3(self,):
 
-        self.u.project(self.un)
-        self.D.assign(self.Dn)
+        if self.second_order: 
+             self.u.project(self.uhat)
+             self.D.assign(self.Dhat)
+        else:
+            self.u.project(self.un)
+            self.D.assign(self.Dn)
 
         self.solv_1_D.solve()
         self.D1.assign(self.D + self.dD)
@@ -357,7 +256,7 @@ class TimeStepping:
         self.u.assign((1.0/3.0)*self.u + (2.0/3.0)*(self.u2 + self.du))
 
     def projection_step(self):
-         # PROJECTION STEP
+        # PROJECTION STEP
         self.Dnp1.assign(self.D)
         self.unp1.project(self.u) #u from discontinuous space
 
@@ -367,3 +266,48 @@ class TimeStepping:
         self.un.assign(self.unp1)
         self.ubar.assign(self.un)
     
+
+    def compute_vorticity(self):
+            outward_normals = CellNormal(self.mesh)
+
+            def perp(u):
+                return cross(outward_normals, u)
+            
+            q = TrialFunction(self.V0)
+            p = TestFunction(self.V0)
+
+            qn = Function(self.V0, name="Relative Vorticity")
+            veqn = q*p*dx + inner(perp(grad(p)), self.un)*dx
+            vprob = LinearVariationalProblem(lhs(veqn), rhs(veqn), qn)
+            qparams = {'ksp_type':'cg'}
+            qsolver = LinearVariationalSolver(vprob, solver_parameters=qparams)
+            qsolver.solve()
+            return qn
+
+
+    def compute_Courant(self):
+            
+            def both(u):
+                return 2*avg(u)
+
+            DG0 = FunctionSpace(self.mesh, "DG", 0)
+            One = Function(DG0).assign(1.0)
+            n = FacetNormal(self.mesh)
+            unn = 0.5*(inner(-self.un, n) + abs(inner(-self.un, n))) # gives fluxes *into* cell only
+            v = TestFunction(DG0)
+            Courant_num = Function(DG0, name="Courant numerator")
+            Courant_num_form = self.dtc*(both(unn*v)*dS)
+
+            Courant_denom = Function(DG0, name="Courant denominator")
+            assemble(One*v*dx, tensor=Courant_denom)
+            Courant = Function(DG0, name="Courant")
+
+            assemble(Courant_num_form, tensor=Courant_num)
+            courant_frac = Function(DG0).interpolate(Courant_num/Courant_denom)
+            Courant.assign(courant_frac)
+            return Courant
+
+    
+    def print_energy(self):
+         g = Constant(9.8)  # Gravitational constant
+         print(assemble((0.5*inner(self.un,self.un)*self.Dn + 0.5 * g * (self.Dn+self.b)**2)*dx))
