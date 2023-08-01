@@ -1,7 +1,4 @@
-from firedrake import (PeriodicIntervalMesh, ExtrudedMesh,
-                       SpatialCoordinate, Function, as_vector, exp,
-                       Constant
-                       )
+from firedrake import *
 from tools.physics import Parameters
 from tools.compressible_Euler import compressibleEulerEquations
 
@@ -41,31 +38,44 @@ g = parameters.g
 c_p = parameters.cp
 
 
-# set mesh parameters
-L = 144000.
-H = 35000.  # Height position of the model top
+H = 35e3  # Height position of the model top
+L = 144e3
 delx = 400*2
 delz = 250*2
 nlayers = H/delz  # horizontal layers
-columns = L/delx  # number of columns
+ncolumns = L/delx  # number of columns
+
+distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
+m = PeriodicIntervalMesh(ncolumns, L, distribution_parameters =
+                            distribution_parameters)
+m.coordinates.dat.data[:] -= L/2
 
 # build mesh
-m = PeriodicIntervalMesh(columns, L)
-ext_mesh = ExtrudedMesh(m, layers=nlayers, layer_height=H/nlayers, name="mesh")
+m = PeriodicIntervalMesh(ncolumns, L)
+mesh = ExtrudedMesh(m, layers=nlayers, layer_height=H/nlayers, name="mesh")
 
-# set terrain-following coordinates
-coord = SpatialCoordinate(ext_mesh)
+# making a mountain out of a molehill
 a = 1000.
-xc = L/2.
-x, z = SpatialCoordinate(ext_mesh)
+xc = 0.
+x, z = SpatialCoordinate(mesh)
 hm = 1.
 zs = hm*a**2/((x-xc)**2 + a**2)
 xexpr = as_vector([x, z + ((H-z)/H)*zs])
+mesh.coordinates.interpolate(xexpr)
 
-mesh = ext_mesh
-Vc = mesh.coordinates.function_space()
-f_mesh = Function(Vc).interpolate(xexpr)
-mesh.coordinates.assign(f_mesh)
+# set terrain-following coordinates
+#coord = SpatialCoordinate(ext_mesh)
+#a = 1000.
+#xc = L/2.
+#x, z = SpatialCoordinate(ext_mesh)
+#hm = 1.
+#zs = hm*a**2/((x-xc)**2 + a**2)
+#xexpr = as_vector([x, z + ((H-z)/H)*zs])
+
+#mesh = ext_mesh
+#Vc = mesh.coordinates.function_space()
+#f_mesh = Function(Vc).interpolate(xexpr)
+#mesh.coordinates.assign(f_mesh)
 
 
 # initialise background temperature

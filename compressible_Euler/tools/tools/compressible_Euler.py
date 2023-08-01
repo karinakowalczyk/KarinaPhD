@@ -232,8 +232,8 @@ class compressibleEulerEquations:
 
         print("CHECKPOINTING")
         with CheckpointFile(self.checkpoint_path, 'w') as afile:
-                            afile.save_mesh(self.mesh)
-                            afile.save_function(Un, idx = idx_count)
+            afile.save_mesh(self.mesh)
+            afile.save_function(Un, idx = idx_count)
         idx_count += 1 
 
         while t < tmax - 0.5*dt:
@@ -247,9 +247,9 @@ class compressibleEulerEquations:
             Un.assign(Unp1)
             
             if self.checkpointing:
-                if step%50==0:
+                if step%1==0:
                     print("CHECKPOINTING")
-                    with CheckpointFile(self.checkpoint_path, 'w') as afile:
+                    with CheckpointFile(self.checkpoint_path, 'a') as afile:
                             afile.save_function(Un, idx = idx_count)
                     idx_count += 1 
 
