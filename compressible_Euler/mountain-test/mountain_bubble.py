@@ -39,8 +39,8 @@ c_p = parameters.cp
 # build volume mesh
 L = 20000.
 H = 20000.  # Height position of the model top
-delx = 150
-delz = 150
+delx = 100
+delz = 100
 nlayers = H/delz+1  # horizontal layers
 columns = L/delx+1  # number of columns
 distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
