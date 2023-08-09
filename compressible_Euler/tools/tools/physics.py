@@ -8,8 +8,7 @@ class Parameters:
     R_d = 287.  # Gas constant for dry air (J/kg/K)
     kappa = 2.0/7.0  # R_d/c_p
     p_0 = 1000.0*100.0  # reference pressure (Pa, not hPa)
-    cp = 1004.
-    g = 9.80665
+    g = 9.810616
 
 
 def thermodynamics_rho(theta_v, pi):

@@ -23,7 +23,7 @@ from petsc4py import PETSc
 class compressibleEulerEquations:
 
     def __init__(self, mesh, vertical_degree=1, horizontal_degree=1,
-                 slice_3D=False, mesh_periodic=True):
+                 slice_3D=False, mesh_periodic=True, rhs = False):
 
         self.mesh = mesh
         self.vertical_degree = vertical_degree
@@ -42,6 +42,13 @@ class compressibleEulerEquations:
         self.mesh_periodic = mesh_periodic
         self.checkpointing = False
         self.checkpoint_path= " "
+
+        self.rhs = rhs
+        if self.rhs:
+            print("rhs defined")
+            self.rhs_u = None
+            self.rhs_rho = None
+            self.rhs_theta = None
         
         self.dim = self.mesh.topological_dimension()
         zvec = [0.0] * self.dim
@@ -139,6 +146,7 @@ class compressibleEulerEquations:
                     + gammar*inner(unph, self.n)*(ds_t + ds_b)
                     )
 
+
         dS = dS_h + dS_v
 
         def rho_eqn(phi):
@@ -166,12 +174,18 @@ class compressibleEulerEquations:
         # a = Constant(10000.0)
         eqn = u_eqn(w, gammar) + theta_eqn(chi) + rho_eqn(phi) # + gamma * rho_eqn(div(w))
 
+        if self.rhs:
+            eqn += inner(self.rhs_u, w)*dx
+            eqn += self.rhs_rho*phi*dx
+            eqn += self.rhs_theta*chi*dx
+            print("RHS added to equatioin")
+
         if self.dim == 3:
             f = Constant(1.0e-4)
             eqn += f*inner(w, cross(self.zvec, unph))*dx
 
         if self.sponge_fct:
-            mubar = 0.3
+            mubar = 0.15
             zc = self.H-10000.
             if self.dim == 2:
                 _, z = SpatialCoordinate(self.mesh)
@@ -189,13 +203,17 @@ class compressibleEulerEquations:
             bc1 = DirichletBC(self.W.sub(0), 0., 1)
             bc2 = DirichletBC(self.W.sub(0), 0., 2)
             nprob = NonlinearVariationalProblem(eqn, Unp1, bcs=[bc1, bc2])
-
         self.solver = NonlinearVariationalSolver(nprob, solver_parameters=self.solver_params)
 
         theta0 = Function(self.Vt, name="theta0").interpolate(self.thetab + self.theta_init_pert)
-        self.thetab = Function(self.Vt).interpolate(self.thetab)
-        self.rho0 = Function(self.Vp, name="rho0").interpolate(self.rho0)  # where rho_b solves the hydrostatic balance eq.
+        self.thetab = Function(self.Vt, name = "thetab").interpolate(self.thetab)
+        self.rho0 = Function(self.Vp, name="rhob").interpolate(self.rho0)  # where rho_b solves the hydrostatic balance eq.
 
+        with CheckpointFile("backgroundfcts_new.h5", 'w') as fileb:
+            fileb.save_mesh(self.mesh)
+            fileb.save_function(self.thetab)
+            fileb.save_function(self.rho0)
+        print("BACKGROUND SAVED")
         U0_bc = apply_BC_def_mesh(self.u0, self.V0, self.Vtr)
         u0_bc, _ = U0_bc.split()
         u0 = Function(self.V0, name="u0").project(u0_bc)
@@ -247,7 +265,7 @@ class compressibleEulerEquations:
             Un.assign(Unp1)
             
             if self.checkpointing:
-                if step%1==0:
+                if step%50==0:
                     print("CHECKPOINTING")
                     with CheckpointFile(self.checkpoint_path, 'a') as afile:
                             afile.save_function(Un, idx = idx_count)
