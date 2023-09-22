@@ -51,7 +51,7 @@ bexpr = 2000.0*(1 - sqrt(minarg)/rl)
 
 
 # set times
-T = 10*86400.
+T = 15*86400.
 dt = 500.
 dtc = Constant(dt)
 t_inner = 0.
@@ -63,10 +63,10 @@ dt_inner_c = Constant(dt_inner)
 SWE_stepper_1 = SWEWithProjection(mesh, dtc/2, u_expr, D_expr, bexpr, H)
 SWE_stepper_2 = SWEWithProjection(mesh, dtc, u_expr, D_expr, bexpr, H, second_order=True)
 
-courant_number = SWE_stepper_2.compute_Courant()
-qn = SWE_stepper_2.compute_vorticity()
+SWE_stepper_2.compute_Courant()
+SWE_stepper_2.compute_vorticity()
 out_file = File("Results/test/proj_solution_class_2nd_order.pvd")
-out_file.write(SWE_stepper_2.Dn, SWE_stepper_2.un, courant_number, qn)
+out_file.write(SWE_stepper_2.Dn, SWE_stepper_2.un, SWE_stepper_2.Courant, SWE_stepper_2.qn)
 
 t = 0.0
 step = 0
@@ -109,9 +109,9 @@ while t < T - 0.5*dt:
 
         print("t =", t)
 
-        #courant_number = SWE_stepper_2.compute_Courant()
-        #qn = SWE_stepper_2.compute_vorticity()
-        out_file.write(SWE_stepper_2.Dn, SWE_stepper_2.un, courant_number, qn)
+        SWE_stepper_2.compute_Courant()
+        qn = SWE_stepper_2.compute_vorticity()
+        out_file.write(SWE_stepper_2.Dn, SWE_stepper_2.un, SWE_stepper_2.Courant, SWE_stepper_2.qn)
 
         #energy = SWE_stepper_2.print_energy()
         #with open("energies.txt","a") as file_energies:

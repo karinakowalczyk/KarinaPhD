@@ -64,28 +64,43 @@ class SWEWithProjection:
         outward_normals = CellNormal(mesh)
         def perp(u):
             return cross(outward_normals, u)
-        '''
+        
         # set up courant number
         print("compute Courant number")
         def both(u):
             return 2*avg(u)
 
-        DG0 = FunctionSpace(self.mesh, "DG", 0)
-        One = Function(DG0).assign(1.0)
+        self.DG0 = FunctionSpace(self.mesh, "DG", 0)
+        One = Function(self.DG0).assign(1.0)
         n = FacetNormal(self.mesh)
         unn = 0.5*(inner(-self.un, n) + abs(inner(-self.un, n))) # gives fluxes *into* cell only
-        v = TestFunction(DG0)
-        Courant_num = Function(DG0, name="Courant numerator")
-        Courant_num_form = self.dtc*(both(unn*v)*dS)
+        v = TestFunction(self.DG0)
+        self.Courant_num = Function(self.DG0, name="Courant numerator")
+        self.Courant_num_form = self.dtc*(both(unn*v)*dS)
 
-        Courant_denom = Function(DG0, name="Courant denominator")
-        assemble(One*v*dx, tensor=Courant_denom)
-        Courant = Function(DG0, name="Courant")
+        self.Courant_denom = Function(self.DG0, name="Courant denominator")
+        assemble(One*v*dx, tensor=self.Courant_denom)
+        self.Courant = Function(self.DG0, name="Courant")
 
-        assemble(Courant_num_form, tensor=Courant_num)
-        courant_frac = Function(DG0).interpolate(Courant_num/Courant_denom)
-        Courant.assign(courant_frac)
-        '''
+        assemble(self.Courant_num_form, tensor=self.Courant_num)
+        courant_frac = Function(self.DG0).interpolate(self.Courant_num/self.Courant_denom)
+        self.Courant.assign(courant_frac)
+        
+        
+        #VORTICITY
+        outward_normals = CellNormal(self.mesh)
+
+        def perp(u):
+            return cross(outward_normals, u)
+        
+        q = TrialFunction(self.V0)
+        p = TestFunction(self.V0)
+
+        self.qn = Function(self.V0, name="Relative Vorticity")
+        veqn = q*p*dx + inner(perp(grad(p)), self.un)*dx
+        vprob = LinearVariationalProblem(lhs(veqn), rhs(veqn), self.qn)
+        qparams = {'ksp_type':'cg'}
+        self.qsolver = LinearVariationalSolver(vprob, solver_parameters=qparams)
 
         #to be the solutions, initialised with un, Dn
         self.D = Function(V2).assign(self.Dn)
@@ -308,6 +323,7 @@ class SWEWithProjection:
     
 
     def compute_vorticity(self):
+            '''
             outward_normals = CellNormal(self.mesh)
 
             def perp(u):
@@ -321,12 +337,13 @@ class SWEWithProjection:
             vprob = LinearVariationalProblem(lhs(veqn), rhs(veqn), qn)
             qparams = {'ksp_type':'cg'}
             qsolver = LinearVariationalSolver(vprob, solver_parameters=qparams)
-            qsolver.solve()
-            return qn
+            '''
+            self.qsolver.solve()
+            #return qn
 
 
     def compute_Courant(self):
-            
+            '''
             print("compute Courant number")
             
             def both(u):
@@ -339,15 +356,17 @@ class SWEWithProjection:
             v = TestFunction(DG0)
             Courant_num = Function(DG0, name="Courant numerator")
             Courant_num_form = self.dtc*(both(unn*v)*dS)
+            
 
             Courant_denom = Function(DG0, name="Courant denominator")
             assemble(One*v*dx, tensor=Courant_denom)
             Courant = Function(DG0, name="Courant")
+            '''
 
-            assemble(Courant_num_form, tensor=Courant_num)
-            courant_frac = Function(DG0).interpolate(Courant_num/Courant_denom)
-            Courant.assign(courant_frac)
-            return Courant
+            assemble(self.Courant_num_form, tensor=self.Courant_num)
+            courant_frac = Function(self.DG0).interpolate(self.Courant_num/self.Courant_denom)
+            self.Courant.assign(courant_frac)
+            #return Courant
 
     
     def print_energy(self):
