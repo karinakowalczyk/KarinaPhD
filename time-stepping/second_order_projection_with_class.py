@@ -1,5 +1,7 @@
 from firedrake import *
 from TimeSteppingClass import *
+import timeit
+
 
 R0 = 6371220.
 H = Constant(5960.)
@@ -10,7 +12,7 @@ distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOv
 
 mesh = IcosahedralSphereMesh(radius=R0,
                             degree=1,
-                            refinement_level=4,
+                            refinement_level=5,
                             distribution_parameters = distribution_parameters)
 x = SpatialCoordinate(mesh)
 mesh.init_cell_orientations(x)
@@ -39,7 +41,7 @@ D_expr = H - ((R0 * Omega * u_max + u_max*u_max/2.0)*(x[2]*x[2]/(R0*R0)))/g
 
 #Topography
 rl = pi/9.0
-lambda_x = atan_2(x[1]/R0, x[0]/R0)
+lambda_x = atan2(x[1]/R0, x[0]/R0)
 lambda_c = -pi/2.0
 phi_x = asin(x[2]/R0)
 phi_c = pi/6.0
@@ -49,8 +51,8 @@ bexpr = 2000.0*(1 - sqrt(minarg)/rl)
 
 
 # set times
-T = 5*86400.
-dt = 180.
+T = 10*86400.
+dt = 500.
 dtc = Constant(dt)
 t_inner = 0.
 dt_inner = dt/10.
@@ -61,19 +63,24 @@ dt_inner_c = Constant(dt_inner)
 SWE_stepper_1 = SWEWithProjection(mesh, dtc/2, u_expr, D_expr, bexpr, H)
 SWE_stepper_2 = SWEWithProjection(mesh, dtc, u_expr, D_expr, bexpr, H, second_order=True)
 
-courant_number = SWE_stepper_1.compute_Courant()
-qn = SWE_stepper_1.compute_vorticity()
-out_file = File("Results/proj_solution_class_2nd_order.pvd")
-out_file.write(SWE_stepper_1.Dn, SWE_stepper_1.un, courant_number, qn)
+courant_number = SWE_stepper_2.compute_Courant()
+qn = SWE_stepper_2.compute_vorticity()
+out_file = File("Results/test/proj_solution_class_2nd_order.pvd")
+out_file.write(SWE_stepper_2.Dn, SWE_stepper_2.un, courant_number, qn)
 
 t = 0.0
 step = 0
 output_freq = 20
 
 #for step in ProgressBar(f'average forward').iter(range(ns)):
+energy = SWE_stepper_2.print_energy()
+with open("energies.txt","a") as file_energies:
+    file_energies.write(str(energy))
+   
 
 while t < T - 0.5*dt:
-    
+
+    start = timeit.default_timer()
  
     SWE_stepper_1.un.assign(SWE_stepper_2.un)
     SWE_stepper_1.Dn.assign(SWE_stepper_2.Dn)
@@ -82,11 +89,18 @@ while t < T - 0.5*dt:
     SWE_stepper_1.advection_SSPRK3()
     SWE_stepper_1.projection_step()
 
-    SWE_stepper_2.ubar = SWE_stepper_1.un # solution from first order scheme
+    SWE_stepper_2.ubar.assign(SWE_stepper_1.un) # solution from first order scheme
     #solve 2 equations for second step 
     SWE_stepper_2.second_order_1st_step()
     SWE_stepper_2.advection_SSPRK3()
     SWE_stepper_2.projection_step()
+
+    stop = timeit.default_timer()
+    time = stop - start
+    print('Time/step: ', time) 
+    with open("runtimes.txt","a") as file_times:
+        file_times.write(str(time))
+   
 
     step += 1
     t += dt
@@ -95,7 +109,11 @@ while t < T - 0.5*dt:
 
         print("t =", t)
 
-        #courant_number = SWE_stepper.compute_Courant()
-        #SWE_stepper.print_energy()
-        #qn = SWE_stepper.compute_vorticity()
+        #courant_number = SWE_stepper_2.compute_Courant()
+        #qn = SWE_stepper_2.compute_vorticity()
         out_file.write(SWE_stepper_2.Dn, SWE_stepper_2.un, courant_number, qn)
+
+        #energy = SWE_stepper_2.print_energy()
+        #with open("energies.txt","a") as file_energies:
+        #    file_energies.write(str(energy))
+   

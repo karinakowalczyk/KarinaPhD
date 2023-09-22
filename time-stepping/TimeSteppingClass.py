@@ -1,4 +1,5 @@
 from firedrake import * 
+import timeit
 
 class SWEWithProjection:
 
@@ -63,7 +64,28 @@ class SWEWithProjection:
         outward_normals = CellNormal(mesh)
         def perp(u):
             return cross(outward_normals, u)
-        
+        '''
+        # set up courant number
+        print("compute Courant number")
+        def both(u):
+            return 2*avg(u)
+
+        DG0 = FunctionSpace(self.mesh, "DG", 0)
+        One = Function(DG0).assign(1.0)
+        n = FacetNormal(self.mesh)
+        unn = 0.5*(inner(-self.un, n) + abs(inner(-self.un, n))) # gives fluxes *into* cell only
+        v = TestFunction(DG0)
+        Courant_num = Function(DG0, name="Courant numerator")
+        Courant_num_form = self.dtc*(both(unn*v)*dS)
+
+        Courant_denom = Function(DG0, name="Courant denominator")
+        assemble(One*v*dx, tensor=Courant_denom)
+        Courant = Function(DG0, name="Courant")
+
+        assemble(Courant_num_form, tensor=Courant_num)
+        courant_frac = Function(DG0).interpolate(Courant_num/Courant_denom)
+        Courant.assign(courant_frac)
+        '''
 
         #to be the solutions, initialised with un, Dn
         self.D = Function(V2).assign(self.Dn)
@@ -136,8 +158,8 @@ class SWEWithProjection:
         self.dD = Function(V2)
         self.du = Function(V1_broken)
 
-        params = {'ksp_type': 'preonly', 'pc_type': 'bjacobi', 'sub_pc_type': 'ilu'}
-        prob_1_D = LinearVariationalProblem(a_D, L1_D, self.dD)
+        params = {'ksp_type': 'preonly', 'pc_type': 'bjacobi', 'sub_pc_type': 'ilu', }
+        prob_1_D = LinearVariationalProblem(a_D, L1_D, self.dD, constant_jacobian=True)
         self.solv_1_D = LinearVariationalSolver(prob_1_D, solver_parameters=params)
         prob_2_D = LinearVariationalProblem(a_D, L2_D, self.dD)
         self.solv_2_D = LinearVariationalSolver(prob_2_D, solver_parameters=params)
@@ -176,7 +198,6 @@ class SWEWithProjection:
         
         a_proj_u = inner(v, self.unp1 - self.u)*dx + (dtc*factor)*proj_u()
              
-
         a_proj_D = rho*(self.Dnp1 -self.D)*dx + (dtc*factor)*proj_D(self.Dbar)
 
         a_proj = a_proj_u + a_proj_D
@@ -194,7 +215,7 @@ class SWEWithProjection:
                             'pc_type': 'lu'
                             }}
 
-        self.solver_proj = NonlinearVariationalSolver(prob, solver_parameters=hparams)
+        self.solver_proj = NonlinearVariationalSolver(prob, solver_parameters=params)
         
         if second_order:
 
@@ -207,7 +228,7 @@ class SWEWithProjection:
 
             def second_order_first_eq_D(Dbar):
                 uup = 0.5 * (dot(self.un, n) + abs(dot(self.un, n)))
-                return (-inner(grad(rho), self.unp1)*Dbar*dx
+                return (-inner(grad(rho), self.un)*Dbar*dx
                         + jump(rho)*(uup('+')*Dbar('+')
                                         - uup('-')*Dbar('-'))*dS)
             
@@ -216,7 +237,8 @@ class SWEWithProjection:
             a_second_order_D = rho*(self.Dhat -self.Dn)*dx + (dtc/2)*second_order_first_eq_D(self.Dbar)
             a_second_order_1 = a_second_order_u+a_second_order_D
             prob_2_order_1 = NonlinearVariationalProblem(a_second_order_1, self.Uhat)
-            self.solver_2ndorder_1st = NonlinearVariationalSolver(prob_2_order_1, solver_parameters=hparams)
+            #hparams or params?
+            self.solver_2ndorder_1st = NonlinearVariationalSolver(prob_2_order_1, solver_parameters=params)
         
         self.unp1, self.Dnp1 = self.Unp1.subfunctions
 
@@ -224,11 +246,17 @@ class SWEWithProjection:
             self.uhat, self.Dhat = self.Uhat.subfunctions
     
     def second_order_1st_step(self,):
+         start = timeit.default_timer()
          self.uhat.assign(self.un)
          self.Dhat.assign(self.Dn)
          self.solver_2ndorder_1st.solve()
+         stop = timeit.default_timer()
+         time = stop - start
+         print("time 1st eq: ", time)
             
     def advection_SSPRK3(self,):
+        
+        start = timeit.default_timer()
 
         if self.second_order: 
              self.u.project(self.uhat)
@@ -255,7 +283,15 @@ class SWEWithProjection:
         self.solv_3_u.solve()
         self.u.assign((1.0/3.0)*self.u + (2.0/3.0)*(self.u2 + self.du))
 
+        stop = timeit.default_timer()
+
+        time = stop - start
+        print("time advection: ", time)
+
+
     def projection_step(self):
+
+        start = timeit.default_timer()
         # PROJECTION STEP
         self.Dnp1.assign(self.D)
         self.unp1.project(self.u) #u from discontinuous space
@@ -265,6 +301,10 @@ class SWEWithProjection:
         self.Dn.assign(self.Dnp1)
         self.un.assign(self.unp1)
         self.ubar.assign(self.un)
+
+        stop = timeit.default_timer()
+        time = stop - start
+        print("time projection: ", time)
     
 
     def compute_vorticity(self):
@@ -286,6 +326,8 @@ class SWEWithProjection:
 
 
     def compute_Courant(self):
+            
+            print("compute Courant number")
             
             def both(u):
                 return 2*avg(u)
@@ -310,4 +352,6 @@ class SWEWithProjection:
     
     def print_energy(self):
          g = Constant(9.8)  # Gravitational constant
-         print(assemble((0.5*inner(self.un,self.un)*self.Dn + 0.5 * g * (self.Dn+self.b)**2)*dx))
+         energy = assemble((0.5*inner(self.un,self.un)*self.Dn + 0.5 * g * (self.Dn+self.b)**2)*dx)
+         print("energy =", energy)
+         return energy
