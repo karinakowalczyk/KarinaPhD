@@ -7,10 +7,11 @@ class SWEWithProjection:
 
         self.dtc = dtc
         self.mesh = mesh
+        x = SpatialCoordinate(mesh)
         self.second_order = second_order
         R0 = 6371220.
         Omega = Constant(7.292e-5)  # rotation rate
-        #f = 2*Omega*z/Constant(R0)  # Coriolis parameter
+        f = 2*Omega*x[2]/Constant(R0)  # Coriolis parameter
         g = Constant(9.8)  # Gravitational constant
         n = FacetNormal(mesh)
         
@@ -30,7 +31,7 @@ class SWEWithProjection:
         # We set up the initial velocity field using a simple analytic expression. ::
 
         # SET UP EXAMPLE
-        x = SpatialCoordinate(mesh)
+        
         #mesh.init_cell_orientations(x)
 
         self.ubar = Function(V1).interpolate(u_expr)
@@ -97,10 +98,14 @@ class SWEWithProjection:
         p = TestFunction(self.V0)
 
         self.qn = Function(self.V0, name="Relative Vorticity")
+        self.pot_qn = Function(self.V0, name="Potential Vorticity")
         veqn = q*p*dx + inner(perp(grad(p)), self.un)*dx
         vprob = LinearVariationalProblem(lhs(veqn), rhs(veqn), self.qn)
         qparams = {'ksp_type':'cg'}
         self.qsolver = LinearVariationalSolver(vprob, solver_parameters=qparams)
+        pot_vort_eqn = (self.Dn*q*p*dx + inner(perp(grad(p)), self.un)*dx + f*p*dx)
+        pot_vort_prob = LinearVariationalProblem(lhs(pot_vort_eqn), rhs(pot_vort_eqn), self.pot_qn)
+        self.pot_vort_solver = LinearVariationalSolver(pot_vort_prob, solver_parameters=qparams) 
 
         #to be the solutions, initialised with un, Dn
         self.D = Function(V2).assign(self.Dn)
@@ -189,8 +194,7 @@ class SWEWithProjection:
         self.solv_3_u = LinearVariationalSolver(prob_3_u, solver_parameters=params)
 
         self.unp1, self.Dnp1 = split(self.Unp1)
-        Omega = Constant(7.292e-5)  # rotation rate
-        f = 2*Omega*x[2]/Constant(R0)  # Coriolis parameter
+        
 
         v, rho = TestFunctions(W)
         def proj_u():
@@ -199,11 +203,7 @@ class SWEWithProjection:
             )
 
         def proj_D(Dbar):
-            uup = 0.5 * (dot(self.unp1, n) + abs(dot(self.unp1, n)))
-            return (-inner(grad(rho), self.unp1)*Dbar*dx
-                    + jump(rho)*(uup('+')*Dbar('+')
-                                    - uup('-')*Dbar('-'))*dS)
-
+            return rho* div(self.unp1*Dbar)*dx
 
         #make signs consistent
         factor = Constant(1.)
@@ -223,14 +223,14 @@ class SWEWithProjection:
             "snes_lag_jacobian": -2,
             'mat_type': 'matfree',
             'ksp_type': 'gmres',
-            #'ksp_monitor': None,
+            'ksp_converged_reason': None,
             'pc_type': 'python',
             'pc_python_type': 'firedrake.HybridizationPC',
             'hybridization': {'ksp_type': 'preonly',
                             'pc_type': 'lu'
                             }}
 
-        self.solver_proj = NonlinearVariationalSolver(prob, solver_parameters=params)
+        self.solver_proj = NonlinearVariationalSolver(prob, solver_parameters=hparams)
         
         if second_order:
 
@@ -302,6 +302,9 @@ class SWEWithProjection:
 
         time = stop - start
         print("time advection: ", time)
+        with open("time_adv.txt","a") as file_times:
+            file_times.write(str(time)+'\n')
+   
 
 
     def projection_step(self):
@@ -320,6 +323,9 @@ class SWEWithProjection:
         stop = timeit.default_timer()
         time = stop - start
         print("time projection: ", time)
+        with open("time_proj.txt","a") as file_times:
+            file_times.write(str(time)+'\n')
+   
     
 
     def compute_vorticity(self):
@@ -339,6 +345,7 @@ class SWEWithProjection:
             qsolver = LinearVariationalSolver(vprob, solver_parameters=qparams)
             '''
             self.qsolver.solve()
+            self.pot_vort_solver.solve()
             #return qn
 
 
@@ -369,8 +376,10 @@ class SWEWithProjection:
             #return Courant
 
     
-    def print_energy(self):
+    def compute_phys_quant(self):
          g = Constant(9.8)  # Gravitational constant
          energy = assemble((0.5*inner(self.un,self.un)*self.Dn + 0.5 * g * (self.Dn+self.b)**2)*dx)
+         enstrophy = assemble(self.pot_qn*self.pot_qn*self.Dn*dx)
+         div_l2 = sqrt(assemble(div(self.un)*div(self.un)*dx))
          print("energy =", energy)
-         return energy
+         return energy, enstrophy, div_l2

@@ -51,7 +51,7 @@ bexpr = 2000.0*(1 - sqrt(minarg)/rl)
 
 
 # set times
-T = 15*86400.
+T = 50*86400.
 dt = 500.
 dtc = Constant(dt)
 t_inner = 0.
@@ -65,17 +65,21 @@ SWE_stepper_2 = SWEWithProjection(mesh, dtc, u_expr, D_expr, bexpr, H, second_or
 
 SWE_stepper_2.compute_Courant()
 SWE_stepper_2.compute_vorticity()
-out_file = File("Results/test/proj_solution_class_2nd_order.pvd")
-out_file.write(SWE_stepper_2.Dn, SWE_stepper_2.un, SWE_stepper_2.Courant, SWE_stepper_2.qn)
+out_file = File("Results/proj_solution_class_2nd_order.pvd")
+out_file.write(SWE_stepper_2.Dn, SWE_stepper_2.un, SWE_stepper_2.Courant, SWE_stepper_2.qn, SWE_stepper_2.pot_qn)
 
 t = 0.0
 step = 0
 output_freq = 20
 
 #for step in ProgressBar(f'average forward').iter(range(ns)):
-energy = SWE_stepper_2.print_energy()
+energy, enstrophy, div_l2 = SWE_stepper_2.compute_phys_quant()
 with open("energies.txt","a") as file_energies:
-    file_energies.write(str(energy))
+    file_energies.write(str(energy)+'\n')
+with open("enstrophies.txt","a") as file:
+    file.write(str(enstrophy)+'\n')
+with open("divl2.txt","a") as file:
+    file.write(str(div_l2)+'\n')
    
 
 while t < T - 0.5*dt:
@@ -99,7 +103,7 @@ while t < T - 0.5*dt:
     time = stop - start
     print('Time/step: ', time) 
     with open("runtimes.txt","a") as file_times:
-        file_times.write(str(time))
+        file_times.write(str(time)+'\n')
    
 
     step += 1
@@ -111,9 +115,13 @@ while t < T - 0.5*dt:
 
         SWE_stepper_2.compute_Courant()
         qn = SWE_stepper_2.compute_vorticity()
-        out_file.write(SWE_stepper_2.Dn, SWE_stepper_2.un, SWE_stepper_2.Courant, SWE_stepper_2.qn)
+        out_file.write(SWE_stepper_2.Dn, SWE_stepper_2.un, SWE_stepper_2.Courant, SWE_stepper_2.qn, SWE_stepper_2.pot_qn)
 
-        #energy = SWE_stepper_2.print_energy()
-        #with open("energies.txt","a") as file_energies:
-        #    file_energies.write(str(energy))
+        energy, enstrophy, div_l2 = SWE_stepper_2.compute_phys_quant()
+        with open("energies.txt","a") as file_energies:
+            file_energies.write(str(energy)+'\n')
+        with open("enstrophies.txt","a") as file_enstrophies:
+            file_enstrophies.write(str(enstrophy)+'\n')
+        with open("divl2.txt","a") as file_div:
+            file_div.write(str(div_l2)+'\n')
    
