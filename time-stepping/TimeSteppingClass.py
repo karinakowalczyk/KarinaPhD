@@ -15,10 +15,7 @@ class SWEWithProjection:
         g = Constant(9.8)  # Gravitational constant
         n = FacetNormal(mesh)
         
-
-        # We set up a function space of discontinous bilinear elements for :math:`q`, and
-        # a vector-valued continuous function space for our velocity field. ::
-
+        # set up function spqaces
         self.V0 = FunctionSpace(mesh, "CG", degree=3)
         #velocity space
         element = FiniteElement("BDM", triangle, degree=2)
@@ -28,17 +25,10 @@ class SWEWithProjection:
         V2 = FunctionSpace(mesh, "DG", 1)
         W = MixedFunctionSpace((V1,V2))
 
-        # We set up the initial velocity field using a simple analytic expression. ::
-
-        # SET UP EXAMPLE
-        
-        #mesh.init_cell_orientations(x)
-
         self.ubar = Function(V1).interpolate(u_expr)
 
 
         # Topography.
-        
         b = Function(V2, name="Topography")
         b.interpolate(bexpr)
         self.b = b
@@ -66,6 +56,7 @@ class SWEWithProjection:
         def perp(u):
             return cross(outward_normals, u)
         
+
         # set up courant number
         print("compute Courant number")
         def both(u):
@@ -88,12 +79,8 @@ class SWEWithProjection:
         self.Courant.assign(courant_frac)
         
         
-        #VORTICITY
-        outward_normals = CellNormal(self.mesh)
-
-        def perp(u):
-            return cross(outward_normals, u)
-        
+        # VORTICITY
+      
         q = TrialFunction(self.V0)
         p = TestFunction(self.V0)
 
@@ -127,19 +114,16 @@ class SWEWithProjection:
 
         # The right-hand-side is more interesting.  We define ``n`` to be the built-in
         # ``FacetNormal`` object; a unit normal vector that can be used in integrals over
-        # exterior and interior facets.  We next define ``un`` to be an object which is
+        # exterior and interior facets.  We next define ``unn`` to be an object which is
         # equal to :math:`\vec{u}\cdot\vec{n}` if this is positive, and zero if this is
         # negative.  This will be useful in the upwind terms. ::
 
         n = FacetNormal(mesh)
         unn = 0.5*(dot(self.ubar, n) + abs(dot(self.ubar, n)))
 
-        # We now define our right-hand-side form ``L1`` as :math:`\Delta t` times the
+
+        # For the advection step, we now define our right-hand-side form ``L1`` as :math:`\Delta t` times the
         # sum of four integrals.
-
-
-
-        #equations for the advection step
         def eq_D(ubar, Dbar):
             uup = 0.5 * (dot(ubar, n) + abs(dot(ubar, n)))
             return (-inner(grad(phi), ubar)*(self.D-Dbar)*dx
@@ -162,6 +146,8 @@ class SWEWithProjection:
         eq_u += unn('-')*inner(w('+'), n('+')+n('-'))*inner(self.u('-'), n('-'))*dS
 
         L1_u = dtc*(-eq_u)
+
+
         # In our Runge-Kutta scheme, the first step uses :math:`q^n` to obtain
         # :math:`q^{(1)}`.  We therefore declare similar forms that use :math:`q^{(1)}`
         # to obtain :math:`q^{(2)}`, and :math:`q^{(2)}` to obtain :math:`q^{n+1}`. We
@@ -172,6 +158,7 @@ class SWEWithProjection:
 
         self.u1 = Function(V1_broken); self.u2 = Function(V1_broken)
         L2_u = replace(L1_u, {self.u: self.u1}); L3_u = replace(L1_u, {self.u: self.u2})
+
 
         # We now declare a variable to hold the temporary increments at each stage. ::
 
@@ -205,7 +192,6 @@ class SWEWithProjection:
         def proj_D(Dbar):
             return rho* div(self.unp1*Dbar)*dx
 
-        #make signs consistent
         factor = Constant(1.)
         if self.second_order:
              factor = Constant(0.5)
@@ -235,7 +221,7 @@ class SWEWithProjection:
         if second_order:
 
             self.uhat, self.Dhat = split(self.Uhat)
-            #use REPLACE instead?
+         
             def second_order_first_eq_u():
                 return (-div(v)*g*(self.Dn+b)*dx
                         + inner(v, f*perp(self.un))*dx 
@@ -252,7 +238,7 @@ class SWEWithProjection:
             a_second_order_D = rho*(self.Dhat -self.Dn)*dx + (dtc/2)*second_order_first_eq_D(self.Dbar)
             a_second_order_1 = a_second_order_u+a_second_order_D
             prob_2_order_1 = NonlinearVariationalProblem(a_second_order_1, self.Uhat)
-            #hparams or params?
+        
             self.solver_2ndorder_1st = NonlinearVariationalSolver(prob_2_order_1, solver_parameters=params)
         
         self.unp1, self.Dnp1 = self.Unp1.subfunctions
@@ -310,7 +296,7 @@ class SWEWithProjection:
     def projection_step(self):
 
         start = timeit.default_timer()
-        # PROJECTION STEP
+    
         self.Dnp1.assign(self.D)
         self.unp1.project(self.u) #u from discontinuous space
 

@@ -45,6 +45,15 @@ def thermodynamics_pi(rho, theta_v):
     return (rho * R_d * theta_v / p_0) ** (kappa / (1 - kappa))
 
 
+def thermodynamics_theta(p, rho):
+    R = 287.
+    gamma = 1.4
+    pref = Parameters.p_0
+    T = p/rho*(1/R)
+    theta = T*(pref/p)**()
+    return theta
+
+
 def apply_BC_def_mesh(u0, V, T):
 
     """

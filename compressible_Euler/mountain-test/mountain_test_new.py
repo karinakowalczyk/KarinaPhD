@@ -51,7 +51,6 @@ m = PeriodicIntervalMesh(ncolumns, L, distribution_parameters =
 m.coordinates.dat.data[:] -= L/2
 
 # build mesh
-m = PeriodicIntervalMesh(ncolumns, L)
 mesh = ExtrudedMesh(m, layers=nlayers, layer_height=H/nlayers, name="mesh")
 
 # making a mountain out of a molehill
@@ -101,7 +100,7 @@ Problem.path_out = "../Results/nonhydrostatic_mountain/mountainNH"
 Problem.thetab = thetab
 Problem.theta_init_pert = 0
 Problem.sponge_fct = True
-Problem.checkpointing = True
+Problem.checkpointing = False
 Problem.checkpoint_path = "checkpointNHMW.h5"
 
 dt = 5.

@@ -34,6 +34,8 @@ class compressibleEulerEquations:
         self.solver_params = None
         self.path_out = " "
         self. thetab = None
+        self.rhob = None
+        self.Pib = None
         self.theta_init_pert = 0
         self.sponge_fct = False
         self.Parameters = Parameters()
@@ -69,16 +71,22 @@ class compressibleEulerEquations:
         self.N = self.Parameters.N
         self.g = self.Parameters.g
 
-    def solve(self, dt, tmax, dumpt):
+    def solve(self, dt, tmax, dumpt, hydrostatic_balance_background = True):
 
         self.theta_b = Function(self.Vt).interpolate(self.thetab)
-        compressible_hydrostatic_balance_with_correct_pi_top(
-                    self.mesh,
-                    self.vertical_degree, self.horizontal_degree,
-                    self.Parameters,
-                    self.theta_b, self.rho0, self.lambdar0, self.Pi0, 
-                    self.slice_3D)
         
+        if hydrostatic_balance_background:
+            compressible_hydrostatic_balance_with_correct_pi_top(
+                        self.mesh,
+                        self.vertical_degree, self.horizontal_degree,
+                        self.Parameters,
+                        self.theta_b, self.rho0, self.lambdar0, self.Pi0, 
+                        self.slice_3D)
+        else: 
+            self.rho0 = Function(self.Vp, name="rho0").interpolate(self.rhob)
+            self.Pi0 = Function(self.Vp, name="Pi0").interpolate(self.Pib)
+            self.lambdar0 = Function(self.Vtr, name = "lambdar0").project(self.Pib)
+
         Un = Function(self.W, name = "Un")
         Unp1 = Function(self.W, name = "Unp1")
         un, rhon, thetan, lambdarn = (Un).split()
@@ -87,7 +95,7 @@ class compressibleEulerEquations:
         unph = 0.5*(un + unp1)
         thetanph = 0.5*(thetan + thetanp1)
         rhonph = 0.5*(rhon + rhonp1)
-
+        
         Pin = thermodynamics_pi(rhon, thetan)
         Pinp1 = thermodynamics_pi(rhonp1, thetanp1)
         Pinph = 0.5*(Pin + Pinp1)
@@ -133,6 +141,10 @@ class compressibleEulerEquations:
             raise NotImplementedError
 
         def u_eqn(w, gammar):
+            if self.g >0:
+                gravity_term =  self.g * inner(w, self.zvec)*dx
+            else:
+                gravity_term = 0
             return (inner(w, unp1 - un)*dx + self.dT * (
                     uadv_eq(w)
                     - self.cp*div(w*thetanph)*Pinph*dx
@@ -140,8 +152,7 @@ class compressibleEulerEquations:
                     + self.cp*inner(thetanph*w, self.n)*lambdarnp1*(ds_t + ds_b)
                     + self.cp*jump(thetanph*w, self.n)*(0.5*(Pinph('+') + Pinph('-')))*dS_v
                     # + c_p * inner(thetanph * w, n) * Pinph * (ds_v)
-                    + self.g * inner(w, self.zvec)*dx)
-                    
+                    + gravity_term)
                     + gammar('+')*jump(unph, self.n)*dS_h  # maybe try adding theta
                     + gammar*inner(unph, self.n)*(ds_t + ds_b)
                     )
@@ -195,7 +206,7 @@ class compressibleEulerEquations:
                 raise NotImplementedError
             mu_top = conditional(z <= zc, 0.0, mubar*sin((np.pi/2.)*(z-zc)/(self.H-zc))**2)
             mu = Function(self.Vp).interpolate(mu_top/self.dT)
-            eqn += mu*inner(w, self.zvec)*inner(unph, self.zvec)*dx
+            eqn += self.dT*mu*inner(w, self.zvec)*inner(unph, self.zvec)*dx
 
         nprob = NonlinearVariationalProblem(eqn, Unp1)
 
@@ -209,14 +220,23 @@ class compressibleEulerEquations:
         self.thetab = Function(self.Vt, name = "thetab").interpolate(self.thetab)
         self.rho0 = Function(self.Vp, name="rhob").interpolate(self.rho0)  # where rho_b solves the hydrostatic balance eq.
 
-        with CheckpointFile("backgroundfcts_new.h5", 'w') as fileb:
-            fileb.save_mesh(self.mesh)
-            fileb.save_function(self.thetab)
-            fileb.save_function(self.rho0)
-        print("BACKGROUND SAVED")
+        Pi_out = Function(self.Vp).interpolate(thermodynamics_pi(self.rho0, self.thetab))
+        file = File("ppi0.pvd")
+        #Pi0_out = Function(self.Vp).interpolate(Pin)
+        file.write(Pi_out)
+        
+        
         U0_bc = apply_BC_def_mesh(self.u0, self.V0, self.Vtr)
         u0_bc, _ = U0_bc.split()
         u0 = Function(self.V0, name="u0").project(u0_bc)
+
+        file = File("backgroundfcts.pvd")
+        file.write(self.rho0, self.thetab, u0)
+        #with CheckpointFile("backgroundfcts_new.h5", 'w') as fileb:
+        #    fileb.save_mesh(self.mesh)
+        #    fileb.save_function(self.thetab)
+        #    fileb.save_function(self.rho0)
+        print("BACKGROUND SAVED")
 
         un.assign(u0)
         rhon.assign(self.rho0)
@@ -248,11 +268,13 @@ class compressibleEulerEquations:
         step = 0
         idx_count =0
 
-        print("CHECKPOINTING")
-        with CheckpointFile(self.checkpoint_path, 'w') as afile:
-            afile.save_mesh(self.mesh)
-            afile.save_function(Un, idx = idx_count)
-        idx_count += 1 
+        
+        if self.checkpointing:
+            print("CHECKPOINTING")
+            with CheckpointFile(self.checkpoint_path, 'w') as afile:
+                afile.save_mesh(self.mesh)
+                afile.save_function(Un, idx = idx_count)
+            idx_count += 1 
 
         while t < tmax - 0.5*dt:
 
