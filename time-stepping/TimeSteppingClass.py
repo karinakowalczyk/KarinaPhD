@@ -3,7 +3,7 @@ import timeit
 
 class SWEWithProjection:
 
-    def __init__(self, mesh, dtc, u_expr, D_expr, bexpr, H, second_order = False):
+    def __init__(self, mesh, dtc, u_expr, D_expr, H, bexpr = None, second_order = False, u_exact = None, D_exact = None):
 
         self.dtc = dtc
         self.mesh = mesh
@@ -27,13 +27,21 @@ class SWEWithProjection:
 
         self.ubar = Function(V1).interpolate(u_expr)
 
+        self.u_exact = None
+        self.D_exact = None
+
 
         # Topography.
-        b = Function(V2, name="Topography")
-        b.interpolate(bexpr)
+        if bexpr:
+            b = Function(V2, name="Topography")
+            b.interpolate(bexpr)
+        else:
+            b = 0
         self.b = b
         self.Dn = Function(V2, name = "D").interpolate(D_expr - b)
+        #H_avg = assemble(D_expr*dx)
         self.Dbar = Function(V2).assign(H)
+        self.Dplusb = Function(V2, name = "D+b").assign(self.Dn + self.b)
 
         #un = Function(V1_broken, name = "u").interpolate(velocity)
         self.un = Function(V1, name = "u").assign(self.ubar)
@@ -56,7 +64,6 @@ class SWEWithProjection:
         def perp(u):
             return cross(outward_normals, u)
         
-
         # set up courant number
         print("compute Courant number")
         def both(u):
@@ -90,7 +97,7 @@ class SWEWithProjection:
         vprob = LinearVariationalProblem(lhs(veqn), rhs(veqn), self.qn)
         qparams = {'ksp_type':'cg'}
         self.qsolver = LinearVariationalSolver(vprob, solver_parameters=qparams)
-        pot_vort_eqn = (self.Dn*q*p*dx + inner(perp(grad(p)), self.un)*dx + f*p*dx)
+        pot_vort_eqn = (self.Dn*q*p*dx + inner(perp(grad(p)), self.un)*dx - f*p*dx)
         pot_vort_prob = LinearVariationalProblem(lhs(pot_vort_eqn), rhs(pot_vort_eqn), self.pot_qn)
         self.pot_vort_solver = LinearVariationalSolver(pot_vort_prob, solver_parameters=qparams) 
 
@@ -141,7 +148,6 @@ class SWEWithProjection:
 
         eq_u = adv_u(self.ubar)
         #adjust to sphere
-        unn = 0.5*(dot(self.ubar, n) + abs(dot(self.ubar, n)))
         eq_u += unn('+')*inner(w('-'), n('+')+n('-'))*inner(self.u('+'), n('+'))*dS
         eq_u += unn('-')*inner(w('+'), n('+')+n('-'))*inner(self.u('-'), n('-'))*dS
 
@@ -305,6 +311,7 @@ class SWEWithProjection:
         self.Dn.assign(self.Dnp1)
         self.un.assign(self.unp1)
         self.ubar.assign(self.un)
+        self.Dplusb.assign(self.Dn + self.b)
 
         stop = timeit.default_timer()
         time = stop - start
@@ -369,3 +376,10 @@ class SWEWithProjection:
          div_l2 = sqrt(assemble(div(self.un)*div(self.un)*dx))
          print("energy =", energy)
          return energy, enstrophy, div_l2
+    
+    def compute_error_sbr(self):
+        # EXACT SOLUTION
+        u_error = sqrt(assemble(inner(self.un - self.u_exact, self.un - self.u_exact)*dx))/sqrt(assemble(inner(self.u_exact, self.u_exact)*dx))
+        D_error = sqrt(assemble(inner(self.Dn - self.D_exact, self.Dn - self.D_exact)*dx))/sqrt(assemble(inner(self.D_exact, self.D_exact)*dx))
+        return u_error, D_error
+        
