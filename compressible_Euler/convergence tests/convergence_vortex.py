@@ -31,38 +31,41 @@ params = {'ksp_type': 'preonly', 'pc_type': 'lu'}
 
 t =0.
 
-L = 1.
-delx = 5.21e-3
-nx = L/delx
-print(nx)
+L = 10000.
+H = 10000.
+#delx = 5.21e-3
+nx = 32
+delx = L/nx
+print(delx)
 
-m = PeriodicIntervalMesh(64, L)
-mesh = ExtrudedMesh(m, nx, layer_height=L/nx, periodic=True)
+m = PeriodicIntervalMesh(nx, L)
+mesh = ExtrudedMesh(m, nx, layer_height=L/nx, periodic=True, name='mesh')
+
+Vc = mesh.coordinates.function_space()
+x, y = SpatialCoordinate(mesh)
+new_coords = Function(Vc).interpolate(as_vector([x,y -(4/H**2) * 0.5*(sin(2*pi*x/L))*((y-H/2)**2 - H**2/4)] ))
+mesh.coordinates.assign(new_coords)
+
+
 x, y = SpatialCoordinate(mesh)
 
-uc = 1.
-vc = 1.
+uc = 100.
+vc = 100.
 
-xc = 0.5 #+ t*uc
-yc = 0.5 #+ t*vc
+xc = L/2 #+ t*uc
+yc = L/2 #+ t*vc
 
-R = 0.4 #radius of vortex
+R = 0.4*L #radius of vortex
 r = sqrt((x - xc)**2 + (y - yc)**2)/R
-phi = atan((y - yc)/(x-xc))
-
-'''
-rhoc = 1.
-rhob = conditional(r>=1, rhoc,  rhoc + 0.5*(1-r**2)**6)
-ux= conditional(r>=1, uc,  -1024*sin(phi)*(1-r**6)*r**6 + uc)
-uy = conditional(r>=1, uc, 1024*sin(phi)*(1-r**6)*r**6 + vc)
-u0 = as_vector([ux, uy])
-'''
+phi = atan2((y - yc),(x-xc))
 
 rhoc = 1.
 rhob = conditional(r>=1, rhoc,  1- 0.5*(1-r**2)**6)
-ux= conditional(r>=1, 1.,  -1024*sin(phi)*(1-r**6)*r**6 + 1.)
-uy = conditional(r>=1, 1., 1024*sin(phi)*(1-r**6)*r**6 + 1.)
-u0 = as_vector([ux, uy])
+
+uth = (1024 * (1.0 - r)**6 * (r)**6)
+ux = conditional(r>=1, uc, uc + uth * (-(y-yc)/(r*R)))
+uy = conditional(r>=1, vc, vc + uth * (+(x-xc)/(r*R)))
+u0 = as_vector([ux,uy])
 
 
 coe = np.zeros((25))
@@ -94,9 +97,10 @@ coe[24] =  -  1.0 / 72.0
 
 p = 0
 for ip in range(25):
-    p += 1024**2 * coe[ip] * (r**(12+ip)-1)
+    p += coe[ip] * (r**(12+ip)-1)
+mach = 0.341
+p = 1 + 1024**2 * mach**2 *conditional(r>=1, 0, p)
 
-p = 1 + conditional(r>=1, 0, p)
 '''
 coe = np.zeros((25))
 coe[0]  =     1.0 / 24.0
@@ -154,15 +158,14 @@ p = 1+conditional(r>=1, 0, p)
 '''
 
 #thetab = thermodynamics_theta(p, rhob)
-
 #thetab = pref/(R0*rhob)*((p/pref)**(1/gamma))
+
 R0 = 287.
 gamma = 1.4
 pref = Parameters.p_0
 
 T = p/(rhob*R0)
 thetab = T*(pref/p)**0.286
-
 
 Vp = FunctionSpace(mesh, "DG", 1)
 p_out = Function(Vp, name = "p_0").interpolate(p)
@@ -178,17 +181,22 @@ Problem.u0 = u0
 Problem.rhob = rhob
 Problem.Pib = pib
 Problem.solver_params = sparameters_star
-Problem.path_out = "../Results/convergence"
+Problem.path_out = "../Results/convergence/vortex32"
 Problem.thetab = thetab
 Problem.theta_init_pert = 0
 Problem.sponge_fct = False
-Problem.checkpointing = False
-#Problem.checkpoint_path = "checkpointNHMW.h5"
+Problem.checkpointing = True
+Problem.checkpoint_path = "checkpointVortex32.h5"
 
 
-dt = 9.7e-4
+#dt = 9.7e-4
+#dt = 0.2*delx/uc
+dt = 0.5
 print(dt)
+#dt = .1
+
 tmax = 100.
-dumpt = 2.
+dumpt = dt
+print ("courant = ", uc*dt/delx)
 
 Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt, hydrostatic_balance_background=False)
