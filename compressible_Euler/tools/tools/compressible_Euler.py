@@ -1,14 +1,17 @@
 from firedrake import (SpatialCoordinate, Function, as_vector,
                        Constant, FacetNormal, split,
                        TestFunctions,
+                       TestFunction,
+                       FunctionSpace,
                        conditional, sin,
                        NonlinearVariationalProblem,
                        NonlinearVariationalSolver,
                        DirichletBC,
-                       dx, dS_h, dS_v, ds_t, ds_b,
+                       dx, dS_h, dS_v, ds_t, ds_b, ds_tb,
                        dot, sign, inner, grad,
                        curl, cross, jump, perp, div,
-                       File, CheckpointFile
+                       File, CheckpointFile,
+                       assemble
                        )
 from tools import (Parameters, build_spaces, build_spaces_slice_3D,
                    compressible_hydrostatic_balance_with_correct_pi_top,
@@ -226,17 +229,10 @@ class compressibleEulerEquations:
         file.write(Pi_out)
         
         
-        U0_bc = apply_BC_def_mesh(self.u0, self.V0, self.Vtr)
-        u0_bc, _ = U0_bc.split()
-        u0 = Function(self.V0, name="u0").project(u0_bc)
-
-        file = File("backgroundfcts.pvd")
-        file.write(self.rho0, self.thetab, u0)
-        #with CheckpointFile("backgroundfcts_new.h5", 'w') as fileb:
-        #    fileb.save_mesh(self.mesh)
-        #    fileb.save_function(self.thetab)
-        #    fileb.save_function(self.rho0)
-        print("BACKGROUND SAVED")
+        #U0_bc = apply_BC_def_mesh(self.u0, self.V0, self.Vtr)
+        #u0_bc, _ = U0_bc.split()
+        #u0 = Function(self.V0, name="u0").project(u0_bc)
+        u0 = Function(self.V0, name="u0").project(self.u0)
 
         un.assign(u0)
         rhon.assign(self.rho0)
@@ -250,6 +246,38 @@ class compressibleEulerEquations:
         # initial guess for Unp1 is Un
         Unp1.assign(Un)
 
+        #COURANT NUmber
+        def both(u):
+            return 2*avg(u)
+
+        DG0 = FunctionSpace(self.mesh, "DG", 0)
+        One = Function(DG0).assign(1.0)
+        v = TestFunction(DG0)
+        Courant_num = Function(DG0, name="Courant numerator")
+        
+        Courant_num_form = self.dT*(
+            (unn('+')*v('+') + unn('-')*v('-'))*(dS_v + dS_h)
+            #+ (unn('+')*v('+'))*ds_tb
+        )
+        Courant_denom = Function(DG0, name="Courant denominator")
+        assemble(One*v*dx, tensor=Courant_denom)
+        Courant = Function(DG0, name="Courant")
+
+        assemble(Courant_num_form, tensor=Courant_num)
+        courant_frac = Function(DG0).interpolate(Courant_num/Courant_denom)
+        Courant.assign(courant_frac)
+        #Courant.assign(Courant_num/Courant_denom)
+
+
+        file = File(self.path_out + "_backgroundfcts.pvd")
+        file.write(self.rho0, self.thetab, u0, Courant)
+        if self.checkpointing:
+            with CheckpointFile("backgroundfcts_new.h5", 'w') as fileb:
+                fileb.save_mesh(self.mesh)
+                fileb.save_function(self.thetab)
+                fileb.save_function(self.rho0)
+        print("BACKGROUND SAVED")
+
         file_out = File(self.path_out + '.pvd')
 
         rhon_pert = Function(self.Vp)
@@ -257,7 +285,10 @@ class compressibleEulerEquations:
         rhon_pert.assign(rhon - self.rho0)
         thetan_pert.assign(thetan - self.theta_b)
 
-        file_out.write(un, rhon_pert, thetan_pert)
+        file_out.write(un, rhon_pert, thetan_pert, Courant)
+
+        file = File(self.path_out + '_nonpert.pvd')
+        file.write(un, rhon, thetan, Courant)
 
         tdump = 0.
         self.dT.assign(dt)
@@ -278,8 +309,8 @@ class compressibleEulerEquations:
 
         while t < tmax - 0.5*dt:
 
-            PETSc.Sys.Print(t)
             t += dt
+            PETSc.Sys.Print(t)
             tdump += dt
 
             self.solver.solve()
@@ -287,7 +318,7 @@ class compressibleEulerEquations:
             Un.assign(Unp1)
             
             if self.checkpointing:
-                if step%50==0:
+                if step%100==0:
                     print("CHECKPOINTING")
                     with CheckpointFile(self.checkpoint_path, 'a') as afile:
                             afile.save_function(Un, idx = idx_count)
@@ -296,13 +327,16 @@ class compressibleEulerEquations:
             rhon_pert.assign(rhon - self.rho0)
             thetan_pert.assign(thetan - self.theta_b)
 
+            assemble(Courant_num_form, tensor=Courant_num)
+            courant_frac = Function(DG0).interpolate(Courant_num/Courant_denom)
+            Courant.assign(courant_frac)
+
             PETSc.Sys.Print("rho max min pert", rhon_pert.dat.data.max(),  rhon_pert.dat.data.min())
             PETSc.Sys.Print("theta max min pert", thetan_pert.dat.data.max(), thetan_pert.dat.data.min())
             PETSc.Sys.Print('lambda max min', lambdarn.dat.data.max(), lambdarn.dat.data.min())
 
             if tdump > dumpt - dt*0.5:
-                file_out.write(un, rhon_pert, thetan_pert)
-
+                file_out.write(un, rhon_pert, thetan_pert, Courant)
                 tdump -= dumpt
             PETSc.Sys.Print(self.solver.snes.getIterationNumber())
             step+=1

@@ -100,7 +100,7 @@ Problem.path_out = "../Results/nonhydrostatic_mountain/mountainNH"
 Problem.thetab = thetab
 Problem.theta_init_pert = 0
 Problem.sponge_fct = True
-Problem.checkpointing = False
+Problem.checkpointing = True
 Problem.checkpoint_path = "checkpointNHMW.h5"
 
 dt = 5.
