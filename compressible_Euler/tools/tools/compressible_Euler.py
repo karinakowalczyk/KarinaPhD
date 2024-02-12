@@ -47,6 +47,7 @@ class compressibleEulerEquations:
         self.mesh_periodic = mesh_periodic
         self.checkpointing = False
         self.checkpoint_path= " "
+        self.check_freq = 50 #checkpointing frequency, checkpoint every 50th time step
 
         self.rhs = rhs
         if self.rhs:
@@ -308,7 +309,7 @@ class compressibleEulerEquations:
             idx_count += 1 
 
         while t < tmax - 0.5*dt:
-
+            step+=1
             t += dt
             PETSc.Sys.Print(t)
             tdump += dt
@@ -318,8 +319,8 @@ class compressibleEulerEquations:
             Un.assign(Unp1)
             
             if self.checkpointing:
-                if step%100==0:
-                    print("CHECKPOINTING")
+                if step%self.check_freq==0:
+                    print("CHECKPOINTING for time t ", t, "with index", idx_count)
                     with CheckpointFile(self.checkpoint_path, 'a') as afile:
                             afile.save_function(Un, idx = idx_count)
                     idx_count += 1 
@@ -339,6 +340,8 @@ class compressibleEulerEquations:
                 file_out.write(un, rhon_pert, thetan_pert, Courant)
                 tdump -= dumpt
             PETSc.Sys.Print(self.solver.snes.getIterationNumber())
-            step+=1
+            #step+=1
+
             
         print("Total index count = ", idx_count)
+        print("number time steps", step)
