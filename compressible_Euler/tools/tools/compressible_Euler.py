@@ -272,12 +272,14 @@ class compressibleEulerEquations:
 
         file = File(self.path_out + "_backgroundfcts.pvd")
         file.write(self.rho0, self.thetab, u0, Courant)
+        '''
         if self.checkpointing:
             with CheckpointFile("backgroundfcts_new.h5", 'w') as fileb:
                 fileb.save_mesh(self.mesh)
                 fileb.save_function(self.thetab)
                 fileb.save_function(self.rho0)
         print("BACKGROUND SAVED")
+        '''
 
         file_out = File(self.path_out + '.pvd')
 
