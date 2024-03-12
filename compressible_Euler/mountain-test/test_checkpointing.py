@@ -4,7 +4,7 @@ import numpy as np
 
 from pyop2.mpi import COMM_WORLD
 import os
-'''
+
 cwd = os.path.abspath(os.path.dirname(__file__))
 
 mesh_name = "channel"
@@ -65,3 +65,4 @@ with CheckpointFile("testfile.h5", 'w') as file:
     file.save_mesh(mesh)
     file.save_function(u)
     file.save_function(w)
+'''
