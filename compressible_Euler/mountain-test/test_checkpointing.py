@@ -44,7 +44,7 @@ if mycolor == 0:
     solB = _solve_poisson(msh)
     assert assemble(inner(solB - solA, solB - solA) * dx) < 1.e-16
 
-
+'''
 from firedrake import *
 import h5py
 import numpy as np
@@ -53,7 +53,7 @@ import numpy as np
 data_matrix = np.random.uniform(-1, 1, size=(10, 3))
 with h5py.File("test_file.h5", "w") as data_file:
     data_file.create_dataset("dataset_name", data=data_matrix)
-'''
+
 
 mesh = UnitSquareMesh(20,20)
 V = FunctionSpace(mesh, "CG", 1)
