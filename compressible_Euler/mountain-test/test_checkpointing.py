@@ -1,7 +1,10 @@
 from firedrake import *
+import h5py
+import numpy as np
+
 from pyop2.mpi import COMM_WORLD
 import os
-
+'''
 cwd = os.path.abspath(os.path.dirname(__file__))
 
 mesh_name = "channel"
@@ -41,7 +44,7 @@ if mycolor == 0:
     solB = _solve_poisson(msh)
     assert assemble(inner(solB - solA, solB - solA) * dx) < 1.e-16
 
-'''
+
 from firedrake import *
 import h5py
 import numpy as np
@@ -50,6 +53,7 @@ import numpy as np
 data_matrix = np.random.uniform(-1, 1, size=(10, 3))
 with h5py.File("test_file.h5", "w") as data_file:
     data_file.create_dataset("dataset_name", data=data_matrix)
+'''
 
 mesh = UnitSquareMesh(20,20)
 V = FunctionSpace(mesh, "CG", 1)
@@ -61,4 +65,3 @@ with CheckpointFile("testfile.h5", 'w') as file:
     file.save_mesh(mesh)
     file.save_function(u)
     file.save_function(w)
-'''
