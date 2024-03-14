@@ -1,7 +1,7 @@
 from firedrake import *
 import h5py
 import numpy as np
-
+'''
 from pyop2.mpi import COMM_WORLD
 import os
 
@@ -65,4 +65,4 @@ with CheckpointFile("testfile.h5", 'w') as file:
     file.save_mesh(mesh)
     file.save_function(u)
     file.save_function(w)
-'''
+
