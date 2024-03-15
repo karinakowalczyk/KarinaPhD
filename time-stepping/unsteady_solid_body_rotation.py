@@ -77,7 +77,7 @@ D_ex = Function(V2, name = "D").interpolate(D_ex_0)
 
 # set times
 T = 12*86400.
-dt = 100.
+dt = 200.
 dtc = Constant(dt)
 t_inner = 0.
 dt_inner = dt/10.
