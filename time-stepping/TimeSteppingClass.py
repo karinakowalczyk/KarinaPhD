@@ -1,11 +1,13 @@
 from firedrake import * 
 import timeit
+from firedrake.petsc import PETSc
 
 class SWEWithProjection:
 
-    def __init__(self, mesh, dtc, u_expr, D_expr, H, bexpr = None, second_order = False, u_exact = None, D_exact = None):
+    def __init__(self, mesh, dtc, u_expr, D_expr, H, bexpr = None, second_order = False, u_exact = None, D_exact = None, n_adv_cycles = 1):
 
         self.dtc = dtc
+        self.n_adv_cycles = n_adv_cycles
         self.mesh = mesh
         x = SpatialCoordinate(mesh)
         self.second_order = second_order
@@ -144,14 +146,14 @@ class SWEWithProjection:
                 +dot(jump(w), (unn('+')*self.u('+') - unn('-')*self.u('-')))*dS
             )
 
-        L1_D = dtc*(-eq_D(self.ubar, self.Dbar))
+        L1_D = (dtc/n_adv_cycles)*(-eq_D(self.ubar, self.Dbar))
 
         eq_u = adv_u(self.ubar)
         #adjust to sphere
         eq_u += unn('+')*inner(w('-'), n('+')+n('-'))*inner(self.u('+'), n('+'))*dS
         eq_u += unn('-')*inner(w('+'), n('+')+n('-'))*inner(self.u('-'), n('-'))*dS
 
-        L1_u = dtc*(-eq_u)
+        L1_u = (dtc/n_adv_cycles)*(-eq_u)
 
 
         # In our Runge-Kutta scheme, the first step uses :math:`q^n` to obtain
@@ -170,6 +172,8 @@ class SWEWithProjection:
 
         self.dD = Function(V2)
         self.du = Function(V1_broken)
+
+        
 
         params = {'ksp_type': 'preonly', 'pc_type': 'bjacobi', 'sub_pc_type': 'ilu', }
         prob_1_D = LinearVariationalProblem(a_D, L1_D, self.dD, constant_jacobian=True)
@@ -223,10 +227,14 @@ class SWEWithProjection:
                             }}
 
         self.solver_proj = NonlinearVariationalSolver(prob, solver_parameters=hparams)
+
+        self.projector_broken = Projector(self.un, self.u, solver_parameters = params)
+
         
         if second_order:
 
             self.uhat, self.Dhat = split(self.Uhat)
+            self.projector_adv = Projector(self.uhat, self.u, solver_parameters = params)
          
             def second_order_first_eq_u():
                 return (-div(v)*g*(self.Dn+b)*dx
@@ -234,43 +242,34 @@ class SWEWithProjection:
                 )
 
             def second_order_first_eq_D(Dbar):
-                uup = 0.5 * (dot(self.un, n) + abs(dot(self.un, n)))
-                return (-inner(grad(rho), self.un)*Dbar*dx
-                        + jump(rho)*(uup('+')*Dbar('+')
-                                        - uup('-')*Dbar('-'))*dS)
-            
+                #uup = 0.5 * (dot(self.un, n) + abs(dot(self.un, n)))
+                #return (-inner(grad(rho), self.un)*Dbar*dx
+                #        + jump(rho)*(uup('+')*Dbar('+')
+                #                        - uup('-')*Dbar('-'))*dS)
+                return rho* div(self.un*Dbar)*dx
+
             a_second_order_u = inner(v, self.uhat - self.un)*dx + (dtc/2)*second_order_first_eq_u()
 
             a_second_order_D = rho*(self.Dhat -self.Dn)*dx + (dtc/2)*second_order_first_eq_D(self.Dbar)
             a_second_order_1 = a_second_order_u+a_second_order_D
             prob_2_order_1 = NonlinearVariationalProblem(a_second_order_1, self.Uhat)
-        
-            self.solver_2ndorder_1st = NonlinearVariationalSolver(prob_2_order_1, solver_parameters=params)
+
+            params2 = {"snes_lag_jacobian": -2,'ksp_type': 'gmres', 'pc_type': 'bjacobi', 'sub_pc_type': 'ilu', }
+            self.solver_2ndorder_1st = NonlinearVariationalSolver(prob_2_order_1, solver_parameters=params2)
         
         self.unp1, self.Dnp1 = self.Unp1.subfunctions
 
         if self.second_order:
             self.uhat, self.Dhat = self.Uhat.subfunctions
-    
+
+    @PETSc.Log.EventDecorator("second_order_1st_step")  
     def second_order_1st_step(self,):
-         start = timeit.default_timer()
          self.uhat.assign(self.un)
          self.Dhat.assign(self.Dn)
          self.solver_2ndorder_1st.solve()
-         stop = timeit.default_timer()
-         time = stop - start
-         print("time 1st eq: ", time)
-            
-    def advection_SSPRK3(self,):
-        
-        start = timeit.default_timer()
+       
 
-        if self.second_order: 
-             self.u.project(self.uhat)
-             self.D.assign(self.Dhat)
-        else:
-            self.u.project(self.un)
-            self.D.assign(self.Dn)
+    def advection_SSPRK3_single_step(self,):
 
         self.solv_1_D.solve()
         self.D1.assign(self.D + self.dD)
@@ -290,21 +289,29 @@ class SWEWithProjection:
         self.solv_3_u.solve()
         self.u.assign((1.0/3.0)*self.u + (2.0/3.0)*(self.u2 + self.du))
 
-        stop = timeit.default_timer()
+    @PETSc.Log.EventDecorator("advection_step")     
+    def advection_SSPRK3(self,):
 
-        time = stop - start
-        print("time advection: ", time)
-        with open("time_adv.txt","a") as file_times:
-            file_times.write(str(time)+'\n')
-   
+        if self.second_order: 
+            self.projector_adv.project()
+            #self.u.project(self.uhat)
+            self.D.assign(self.Dhat)
+        else:
+            self.projector_broken.project()
+            #self.u.project(self.un)
+            self.D.assign(self.Dn)
+
+        for i in range(self.n_adv_cycles):
+            print("adv. subscyle number ", i+1)
+            self.advection_SSPRK3_single_step()
 
 
+    @PETSc.Log.EventDecorator("projection_step")
     def projection_step(self):
 
-        start = timeit.default_timer()
     
-        self.Dnp1.assign(self.D)
-        self.unp1.project(self.u) #u from discontinuous space
+        #self.Dnp1.assign(self.D)
+        #self.unp1.project(self.u) #Todo: assign(self.un) or nothing, u from discontinuous space
 
         self.solver_proj.solve()
 
@@ -312,15 +319,9 @@ class SWEWithProjection:
         self.un.assign(self.unp1)
         self.ubar.assign(self.un)
         self.Dplusb.assign(self.Dn + self.b)
-
-        stop = timeit.default_timer()
-        time = stop - start
-        print("time projection: ", time)
-        with open("time_proj.txt","a") as file_times:
-            file_times.write(str(time)+'\n')
-   
     
-
+    
+    @PETSc.Log.EventDecorator("compute_vorticity")    
     def compute_vorticity(self):
             '''
             outward_normals = CellNormal(self.mesh)
@@ -341,7 +342,7 @@ class SWEWithProjection:
             self.pot_vort_solver.solve()
             #return qn
 
-
+    @PETSc.Log.EventDecorator("compute_courant")    
     def compute_Courant(self):
             '''
             print("compute Courant number")
@@ -368,7 +369,7 @@ class SWEWithProjection:
             self.Courant.assign(courant_frac)
             #return Courant
 
-    
+    @PETSc.Log.EventDecorator("compute_energies")    
     def compute_phys_quant(self):
          g = Constant(9.8)  # Gravitational constant
          energy = assemble((0.5*inner(self.un,self.un)*self.Dn + 0.5 * g * (self.Dn+self.b)**2)*dx)
