@@ -51,8 +51,8 @@ bexpr = 2000.0*(1 - sqrt(minarg)/rl)
 
 
 # set times
-T = 50*86400.
-dt = 500.
+T = 10*86400.
+dt = 4000.
 dtc = Constant(dt)
 t_inner = 0.
 dt_inner = dt/10.
@@ -60,12 +60,12 @@ dt_inner_c = Constant(dt_inner)
 
 
 #set up class, sets up all necessery solvers
-SWE_stepper_1 = SWEWithProjection(mesh, dtc/2, u_expr, D_expr, bexpr, H)
-SWE_stepper_2 = SWEWithProjection(mesh, dtc, u_expr, D_expr, bexpr, H, second_order=True)
+SWE_stepper_1 = SWEWithProjection(mesh, dtc/2, u_expr, D_expr, H, bexpr=bexpr, n_adv_cycles = 4)
+SWE_stepper_2 = SWEWithProjection(mesh, dtc, u_expr, D_expr, H, bexpr=bexpr, second_order=True, n_adv_cycles = 4)
 
 SWE_stepper_2.compute_Courant()
 SWE_stepper_2.compute_vorticity()
-out_file = File("Results/proj_solution_class_2nd_order.pvd")
+out_file = File("Results/Williamson5.pvd")
 out_file.write(SWE_stepper_2.Dn, SWE_stepper_2.un, SWE_stepper_2.Courant, SWE_stepper_2.qn, SWE_stepper_2.pot_qn)
 
 t = 0.0
@@ -82,9 +82,10 @@ with open("divl2.txt","a") as file:
     file.write(str(div_l2)+'\n')
    
 
+
 while t < T - 0.5*dt:
 
-    start = timeit.default_timer()
+    print("t = ", t)
  
     SWE_stepper_1.un.assign(SWE_stepper_2.un)
     SWE_stepper_1.Dn.assign(SWE_stepper_2.Dn)
@@ -98,13 +99,6 @@ while t < T - 0.5*dt:
     SWE_stepper_2.second_order_1st_step()
     SWE_stepper_2.advection_SSPRK3()
     SWE_stepper_2.projection_step()
-
-    stop = timeit.default_timer()
-    time = stop - start
-    print('Time/step: ', time) 
-    with open("runtimes.txt","a") as file_times:
-        file_times.write(str(time)+'\n')
-   
 
     step += 1
     t += dt
