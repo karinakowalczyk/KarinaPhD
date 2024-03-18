@@ -1,7 +1,23 @@
 from firedrake import *
+
+mesh = UnitSquareMesh(100,100, name="test")
+V = FunctionSpace(mesh, "CG", 1)
+u = Function(V, name="u")
+
+with CheckpointFile("example.h5", 'w') as afile:
+    afile.save_mesh(mesh)  # optional
+    afile.save_function(u)
+
+with CheckpointFile("example.h5", 'r') as afile:
+    mesh = afile.load_mesh("test")
+    u1 = afile.load_function(mesh, "u")
+
+
+'''
+from firedrake import *
 import h5py
 import numpy as np
-'''
+
 from pyop2.mpi import COMM_WORLD
 import os
 
@@ -44,7 +60,7 @@ if mycolor == 0:
     solB = _solve_poisson(msh)
     assert assemble(inner(solB - solA, solB - solA) * dx) < 1.e-16
 
-'''
+
 from firedrake import *
 import h5py
 import numpy as np
@@ -66,3 +82,4 @@ with CheckpointFile("testfile.h5", 'w') as file:
     file.save_function(u)
     file.save_function(w)
 
+'''
