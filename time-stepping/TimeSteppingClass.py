@@ -4,13 +4,17 @@ from firedrake.petsc import PETSc
 
 class SWEWithProjection:
 
-    def __init__(self, mesh, dtc, u_expr, D_expr, H, bexpr = None, second_order = False, u_exact = None, D_exact = None, n_adv_cycles = 1):
+    def __init__(self, mesh, dtc, u_expr, D_expr, H, bexpr = None, 
+                 second_order = False, u_exact = None, D_exact = None, 
+                 n_adv_cycles = 1, slate_inv = False):
+
 
         self.dtc = dtc
         self.n_adv_cycles = n_adv_cycles
         self.mesh = mesh
         x = SpatialCoordinate(mesh)
         self.second_order = second_order
+        self.slate_inv = slate_inv
         R0 = 6371220.
         Omega = Constant(7.292e-5)  # rotation rate
         f = 2*Omega*x[2]/Constant(R0)  # Coriolis parameter
@@ -115,6 +119,8 @@ class SWEWithProjection:
         dD_trial = TrialFunction(V2)
         phi = TestFunction(V2)
         a_D = phi*dD_trial*dx
+        a_D_slate = Tensor(a_D).inv
+        self.dmass_inv = assemble(a_D_slate)
 
         du_trial = TrialFunction(V1_broken)
         w = TestFunction(V1_broken)
@@ -147,7 +153,7 @@ class SWEWithProjection:
             )
 
         L1_D = (dtc/n_adv_cycles)*(-eq_D(self.ubar, self.Dbar))
-
+        
         eq_u = adv_u(self.ubar)
         #adjust to sphere
         eq_u += unn('+')*inner(w('-'), n('+')+n('-'))*inner(self.u('+'), n('+'))*dS
@@ -172,6 +178,12 @@ class SWEWithProjection:
 
         self.dD = Function(V2)
         self.du = Function(V1_broken)
+
+        if slate_inv:
+            self.L1_D = L1_D
+            self.L2_D = L2_D
+            self.L3_D = L3_D
+            self.rhs = Cofunction(V2.dual())
 
         
 
@@ -271,13 +283,31 @@ class SWEWithProjection:
 
     def advection_SSPRK3_single_step(self,):
 
-        self.solv_1_D.solve()
+        if self.slate_inv:
+            print("using slate mass inverse")
+            assemble(self.L1_D, tensor = self.rhs)
+            with self.dD.dat.vec_wo as x_, self.rhs.dat.vec_ro as b_:
+                self.dmass_inv.petscmat.mult(b_, x_)
+        else:
+            self.solv_1_D.solve()
         self.D1.assign(self.D + self.dD)
 
-        self.solv_2_D.solve()
+        if self.slate_inv:
+            print("using slate mass inverse")
+            assemble(self.L2_D, tensor = self.rhs)
+            with self.dD.dat.vec_wo as x_, self.rhs.dat.vec_ro as b_:
+                self.dmass_inv.petscmat.mult(b_, x_)
+        else:
+            self.solv_2_D.solve()
         self.D2.assign(0.75*self.D + 0.25*(self.D1 + self.dD))
 
-        self.solv_3_D.solve()
+        if self.slate_inv:
+            print("using slate mass inverse")
+            assemble(self.L3_D, tensor = self.rhs)
+            with self.dD.dat.vec_wo as x_, self.rhs.dat.vec_ro as b_:
+                self.dmass_inv.petscmat.mult(b_, x_)
+        else:
+            self.solv_3_D.solve()
         self.D.assign((1.0/3.0)*self.D + (2.0/3.0)*(self.D2 + self.dD))
 
         self.solv_1_u.solve()
