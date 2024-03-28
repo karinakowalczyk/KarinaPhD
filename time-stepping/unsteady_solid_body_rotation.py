@@ -12,14 +12,66 @@ Omega = Constant(7.292e-5)  # rotation rate
 Omega_vec = Omega*as_vector([0.,0.,1.])
 g = Constant(9.8)  # Gravitational constant
 
+#l2 norm of exact solution as reference, computed once on a mesh with ref_level=7
+uref = 712008703.4132433 
+dref = 298004433314.0549
+
+
+t =0.
+
+e1 = as_vector([1.,0.,0.])
+e2 = as_vector([0.,1.,0.])
+e3 = as_vector([0.,0.,1.])
+b1 = cos(Omega*t)*e1 + sin(Omega*t)*e2
+b2 = -sin(Omega*t)*e1 + cos(Omega*t)*e2
+b3 = e3
+
+alpha = pi/4
+c_vec = -sin(alpha)*e1 + cos(alpha)*e3
+
+u0 = (2*pi*R0/12)/86400.
+#u0 = 20.
+H= 133681./g
+
+def compute_ref():
+    refinement_level=7
+    distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
+    mesh = IcosahedralSphereMesh(radius=R0,
+                                degree=1, #TODO increase
+                                refinement_level=refinement_level,
+                                distribution_parameters = distribution_parameters)
+    x = SpatialCoordinate(mesh)
+    mesh.init_cell_orientations(x)
+
+    phi_t = dot(c_vec, b1)*e1 +dot(c_vec, b2)*e2 + dot(c_vec, b3)*e3 
+
+    # needed because mesh isn't actually on the sphere, so n isn't exact 
+    r = (x[0]**2+x[1]**2+x[2]**2)**0.5
+    k = as_vector(x)/r
+    z = x[2]/r*R0
+
+    phi_t_dot_n = dot(phi_t, k)
+    #= (1/R0)*(-sin(alpha)*x[0]+cos(alpha)*x[2]) 
+    u_expr = u0 * cross(phi_t, k)
+    D_expr = H - (1/(2*g))*((u0*phi_t_dot_n+ z*Omega)**2 ) + (1/(2*g))*(z*Omega)**2
+    uref = norm(u_expr)
+    Dref = norm(D_expr)
+    return uref, Dref
+
+if uref == 0:
+    print("Computing reference functions")
+    uref, dref = compute_ref()
+   
+print("uref, dref =", uref, dref)
+
 distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
-refinement_level_list= [4,5,6]
+refinement_level_list= [3,4,5,6]
 n_ref = len(refinement_level_list)
 
 for i in range(n_ref):
     refinement_level=refinement_level_list[i]
     mesh = IcosahedralSphereMesh(radius=R0,
-                                degree=1,
+                                degree=3, #TODO increase
                                 refinement_level=refinement_level,
                                 distribution_parameters = distribution_parameters)
     x = SpatialCoordinate(mesh)
@@ -28,9 +80,9 @@ for i in range(n_ref):
 
     t =0.
 
-    e1 = as_vector([1.,0.,0.])
-    e2 = as_vector([0.,1.,0.])
-    e3 = as_vector([0.,0.,1.])
+    #e1 = as_vector([1.,0.,0.])
+    #e2 = as_vector([0.,1.,0.])
+    #e3 = as_vector([0.,0.,1.])
     b1 = cos(Omega*t)*e1 + sin(Omega*t)*e2
     b2 = -sin(Omega*t)*e1 + cos(Omega*t)*e2
     b3 = e3
@@ -42,20 +94,26 @@ for i in range(n_ref):
     #phi = dot(c_vec, b1)*e1 +dot(c_vec, b2)*e2 + dot(c_vec, b3)*e3 
     #phi_dot_n = dot(phi, n)
 
-    u0 = (2*pi*R0/12)/86400
+    u0 = (2*pi*R0/12)/86400.
     #u0 = 20.
     H= 133681./g
     phi_t = dot(c_vec, b1)*e1 +dot(c_vec, b2)*e2 + dot(c_vec, b3)*e3 
-    phi_t_dot_n = dot(phi_t, n)
+
+    # needed because mesh isn't actually on the sphere, so n isn't exact 
+    r = (x[0]**2+x[1]**2+x[2]**2)**0.5
+    k = as_vector(x)/r
+    z = x[2]/r*R0
+
+    phi_t_dot_n = dot(phi_t, k)
     #= (1/R0)*(-sin(alpha)*x[0]+cos(alpha)*x[2]) 
-    u_expr = u0 * cross(phi_t, n)
-    D_expr = H - (1/(2*g))*((u0*phi_t_dot_n+ x[2]*Omega)**2 ) + (1/(2*g))*(x[2]*Omega)**2
+    u_expr = u0 * cross(phi_t, k)
+    D_expr = H - (1/(2*g))*((u0*phi_t_dot_n+ z*Omega)**2 ) + (1/(2*g))*(z*Omega)**2
 
     #u_expr = as_vector([-u0*x[1]/R0, u0*x[0]/R0, 0.0])
     # Initial depth
     #D_expr = H - ((R0 * Omega * u0 + u0*u0/2.0)*(x[2]*x[2]/(R0*R0)))/g
     k2 = 0.
-    bexpr = (1/(2*g))*(x[2]*Omega)**2 + k2
+    bexpr = (1/(2*g))*(z*Omega)**2 + k2
     #bexpr =0.
     #u_expr = (u0/R0)*as_vector([-cos(alpha)*x[1], cos(alpha)*x[0]+ sin(alpha)*x[2], -sin(alpha)*x[1]])
 
@@ -65,9 +123,9 @@ for i in range(n_ref):
         b3 = e3
         c_vec = -sin(alpha)*e1 + cos(alpha)*e3
         phi_t = dot(c_vec, b1)*e1 +dot(c_vec, b2)*e2 + dot(c_vec, b3)*e3 
-        phi_t_dot_n = dot(phi_t, n)
-        u_exact = u0 * cross(phi_t, n)
-        D_exact = H - (1/(2*g))*(u0*phi_t_dot_n+ x[2]*Omega)**2 + (1/(2*g))*(x[2]*Omega)**2
+        phi_t_dot_n = dot(phi_t, k)
+        u_exact = u0 * cross(phi_t, k)
+        D_exact = H - (1/(2*g))*(u0*phi_t_dot_n+ z*Omega)**2 + (1/(2*g))*(z*Omega)**2
         return u_exact, D_exact
 
 
@@ -84,13 +142,16 @@ for i in range(n_ref):
 
 
     # set times
-    T = 12*86400.
-    dt = 500.
+    T=1.
+    #T = 1*86400.
+    dt = 400.
     dtc = Constant(dt)
 
     #set up class, sets up all necessery solvers
-    SWE_stepper_1 = SWEWithProjection(mesh, dtc/2, u_expr, D_expr, H, bexpr=bexpr, n_adv_cycles=2)
-    SWE_stepper_2 = SWEWithProjection(mesh, dtc, u_expr, D_expr, H, bexpr=bexpr, second_order=True, n_adv_cycles=2)
+    SWE_stepper_1 = SWEWithProjection(mesh, dtc/2, u_expr, D_expr, H, 
+                                      bexpr=bexpr, n_adv_cycles=2, slate_inv = True)
+    SWE_stepper_2 = SWEWithProjection(mesh, dtc, u_expr, D_expr, H, 
+                                      bexpr=bexpr, second_order=True, n_adv_cycles=2, slate_inv = True)
 
     SWE_stepper_2.compute_Courant()
     SWE_stepper_2.compute_vorticity()
@@ -102,9 +163,17 @@ for i in range(n_ref):
     output_freq = 100.
 
     #for step in ProgressBar(f'average forward').iter(range(ns)):
+    u_error = norm(SWE_stepper_2.un - u_ex_0)/uref
+    D_error = norm(SWE_stepper_2.Dplusb - D_ex_0)/dref
 
+    with open("Results/LauterTest/uerrors"+str(refinement_level)+".txt", 'w') as ufile:
+        ufile.write(str(u_error)+'\n')
+    with open("Results/LauterTest/Derrors"+str(refinement_level)+".txt", 'w') as Dfile:
+        Dfile.write(str(D_error)+'\n')
 
     while t < T - 0.5*dt:
+        
+        print("time ", t)
     
         SWE_stepper_1.un.assign(SWE_stepper_2.un)
         SWE_stepper_1.Dn.assign(SWE_stepper_2.Dn)
@@ -143,8 +212,10 @@ for i in range(n_ref):
             u_ex.project(u_exact)
             D_ex.project(D_exact)
             file_exact.write(u_ex, D_ex)
-            u_error = sqrt(assemble(inner(SWE_stepper_2.un - u_exact, SWE_stepper_2.un - u_exact)*dx))/sqrt(assemble(inner(u_exact, u_exact)*dx))
-            D_error = sqrt(assemble(inner(SWE_stepper_2.Dplusb - D_exact, SWE_stepper_2.Dplusb - D_exact)*dx))/sqrt(assemble(inner(D_exact, D_exact)*dx))
+            u_error = norm(SWE_stepper_2.un - u_exact)/uref
+            D_error = norm(SWE_stepper_2.Dplusb - D_exact)/dref
+            #u_error = sqrt(assemble(inner(SWE_stepper_2.un - u_exact, SWE_stepper_2.un - u_exact)*dx))/sqrt(assemble(inner(u_exact, u_exact)*dx))
+            #D_error = sqrt(assemble(inner(SWE_stepper_2.Dplusb - D_exact, SWE_stepper_2.Dplusb - D_exact)*dx))/sqrt(assemble(inner(D_exact, D_exact)*dx))
 
             #u_ex.interpolate(u_exact)
             #D_ex.interpolate(D_exact)
