@@ -37,7 +37,7 @@ def compute_ref():
     refinement_level=7
     distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
     mesh = IcosahedralSphereMesh(radius=R0,
-                                degree=1, #TODO increase
+                                degree=3, #TODO increase
                                 refinement_level=refinement_level,
                                 distribution_parameters = distribution_parameters)
     x = SpatialCoordinate(mesh)
@@ -142,8 +142,8 @@ for i in range(n_ref):
 
 
     # set times
-    T=1.
-    #T = 1*86400.
+    #T=1.
+    T = 6*86400.
     dt = 400.
     dtc = Constant(dt)
 
