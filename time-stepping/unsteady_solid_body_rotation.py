@@ -143,15 +143,15 @@ for i in range(n_ref):
 
     # set times
     #T=1.
-    T = 6*86400.
-    dt = 400.
+    T = 2*86400.
+    dt = 100.
     dtc = Constant(dt)
 
     #set up class, sets up all necessery solvers
     SWE_stepper_1 = SWEWithProjection(mesh, dtc/2, u_expr, D_expr, H, 
-                                      bexpr=bexpr, n_adv_cycles=2, slate_inv = True)
+                                      bexpr=bexpr, n_adv_cycles=1, slate_inv = True)
     SWE_stepper_2 = SWEWithProjection(mesh, dtc, u_expr, D_expr, H, 
-                                      bexpr=bexpr, second_order=True, n_adv_cycles=2, slate_inv = True)
+                                      bexpr=bexpr, second_order=True, n_adv_cycles=1, slate_inv = True)
 
     SWE_stepper_2.compute_Courant()
     SWE_stepper_2.compute_vorticity()
@@ -212,8 +212,8 @@ for i in range(n_ref):
             u_ex.project(u_exact)
             D_ex.project(D_exact)
             file_exact.write(u_ex, D_ex)
-            u_error = norm(SWE_stepper_2.un - u_exact)/uref
-            D_error = norm(SWE_stepper_2.Dplusb - D_exact)/dref
+            u_error = norm(SWE_stepper_2.un - u_exact)
+            D_error = norm(SWE_stepper_2.Dplusb - D_exact)
             #u_error = sqrt(assemble(inner(SWE_stepper_2.un - u_exact, SWE_stepper_2.un - u_exact)*dx))/sqrt(assemble(inner(u_exact, u_exact)*dx))
             #D_error = sqrt(assemble(inner(SWE_stepper_2.Dplusb - D_exact, SWE_stepper_2.Dplusb - D_exact)*dx))/sqrt(assemble(inner(D_exact, D_exact)*dx))
 
