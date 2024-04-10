@@ -65,7 +65,7 @@ if uref == 0:
 print("uref, dref =", uref, dref)
 
 distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
-refinement_level_list= [3,4,5,6]
+refinement_level_list= [6] #[3,4,5,6]
 n_ref = len(refinement_level_list)
 
 for i in range(n_ref):
@@ -144,7 +144,7 @@ for i in range(n_ref):
     # set times
     #T=1.
     T = 2*86400.
-    dt = 100.
+    dt = 50.
     dtc = Constant(dt)
 
     #set up class, sets up all necessery solvers
