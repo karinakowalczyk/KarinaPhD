@@ -25,7 +25,7 @@ sparameters_star = {
     "assembled_pc_star_construct_dim": 0,
     "assembled_pc_star_sub_pc_type": "lu",
     'assembled_pc_star_sub_pc_factor_mat_solver_type': 'mumps',
-    "assembled_pc_star_sub_pc_factor_mat_ordering_type": "rcm",
+    #"assembled_pc_star_sub_pc_factor_mat_ordering_type": "rcm",
     # "assembled_pc_star_sub_pc_factor_nonzeros_along_diagonal": 1e-8,
 }
 
@@ -232,7 +232,7 @@ for i in range(len(delx_list)):
 
 
     tmax = 100.
-    dumpt = dt
+    dumpt = 100*dt
     print ("courant = ", uc*dt/delx)
 
     Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt, hydrostatic_balance_background=False)
