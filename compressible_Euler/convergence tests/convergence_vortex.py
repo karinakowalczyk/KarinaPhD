@@ -23,9 +23,9 @@ sparameters_star = {
     "assembled_pc_type": "python",
     "assembled_pc_python_type": "firedrake.ASMStarPC",
     "assembled_pc_star_construct_dim": 0,
-    "assembled_pc_star_sub_pc_type": "lu",
-    'assembled_pc_star_sub_pc_factor_mat_solver_type': 'mumps',
-    #"assembled_pc_star_sub_pc_factor_mat_ordering_type": "rcm",
+    "assembled_pc_star_sub_sub_pc_type": "lu",
+    'assembled_pc_star_sub_sub_pc_factor_mat_solver_type': 'mumps',
+    "assembled_pc_star_sub_sub_pc_factor_mat_ordering_type": "rcm",
     # "assembled_pc_star_sub_pc_factor_nonzeros_along_diagonal": 1e-8,
 }
 
