@@ -23,9 +23,9 @@ sparameters_star = {
     "assembled_pc_type": "python",
     "assembled_pc_python_type": "firedrake.ASMStarPC",
     "assembled_pc_star_construct_dim": 0,
-    "assembled_pc_star_sub_sub_pc_type": "lu",
-    'assembled_pc_star_sub_sub_pc_factor_mat_solver_type': 'mumps',
-    "assembled_pc_star_sub_sub_pc_factor_mat_ordering_type": "rcm",
+    "assembled_pc_star_sub_sub_pc_type": "ilu",
+    #'assembled_pc_star_sub_sub_pc_factor_mat_solver_type': 'mumps',
+    #"assembled_pc_star_sub_sub_pc_factor_mat_ordering_type": "rcm",
     # "assembled_pc_star_sub_pc_factor_nonzeros_along_diagonal": 1e-8,
 }
 
@@ -37,10 +37,10 @@ uc = 100.
 vc = 100.
 L = 10000.
 H = 10000.
-delx_list = [80]
-delt_list = [0.125/4 for i in range(len(delx_list))]
+delx_list = [125/2]
+delt_list = [0.125/16 for i in range(len(delx_list))]
 n_timesteps = [100/delt_list[i] for i in range(len(delx_list))]
-nx_list = [10000/delx_list[i]for i in range(len(delx_list))]
+nx_list = [int(10000/delx_list[i]) for i in range(len(delx_list))]
 print("nx_list ", nx_list)
 check_freqs= [100 for i in range(len(delx_list))]
 
