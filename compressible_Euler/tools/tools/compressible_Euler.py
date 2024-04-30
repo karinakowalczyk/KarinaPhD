@@ -66,7 +66,7 @@ class compressibleEulerEquations:
         else:
             self.V0, self.Vv, self.Vp, self.Vt, self.Vtr = build_spaces(self.mesh, self.vertical_degree, self.horizontal_degree)
 
-        self.W = self.Vt*self.V0*self.Vp*self.Vtr
+        self.W = self.V0*self.Vp*self.Vt*self.Vtr
 
         self.Pi0 = Function(self.Vp)
         self.rho0 = Function(self.Vp)
@@ -93,8 +93,8 @@ class compressibleEulerEquations:
 
         Un = Function(self.W, name = "Un")
         Unp1 = Function(self.W, name = "Unp1")
-        thetan, un, rhon, lambdarn = (Un).split()
-        thetanp1, unp1, rhonp1, lambdarnp1 = split(Unp1)
+        un, rhon, thetan, lambdarn = (Un).split()
+        unp1, rhonp1, thetanp1, lambdarnp1 = split(Unp1)
 
         unph = 0.5*(un + unp1)
         thetanph = 0.5*(thetan + thetanp1)
@@ -185,7 +185,7 @@ class compressibleEulerEquations:
                     )
 
         # set up test functions and the nonlinear problem
-        chi, w, phi, gammar = TestFunctions(self.W)
+        w, phi, chi, gammar = TestFunctions(self.W)
         # a = Constant(10000.0)
         eqn = u_eqn(w, gammar) + theta_eqn(chi) + rho_eqn(phi) # + gamma * rho_eqn(div(w))
 
@@ -215,8 +215,8 @@ class compressibleEulerEquations:
         nprob = NonlinearVariationalProblem(eqn, Unp1)
 
         if not self.mesh_periodic:
-            bc1 = DirichletBC(self.W.sub(1), 0., 1)
-            bc2 = DirichletBC(self.W.sub(1), 0., 2)
+            bc1 = DirichletBC(self.W.sub(0), 0., 1)
+            bc2 = DirichletBC(self.W.sub(0), 0., 2)
             nprob = NonlinearVariationalProblem(eqn, Unp1, bcs=[bc1, bc2])
         self.solver = NonlinearVariationalSolver(nprob, solver_parameters=self.solver_params)
 
