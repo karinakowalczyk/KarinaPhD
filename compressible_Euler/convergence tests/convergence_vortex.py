@@ -37,8 +37,8 @@ uc = 100.
 vc = 100.
 L = 10000.
 H = 10000.
-delx_list = [1000, 500, 250, 125]
-delt_list = [0.125/2 for i in range(len(delx_list))]
+delx_list = [80]
+delt_list = [0.125/16 for i in range(len(delx_list))]
 n_timesteps = [100/delt_list[i] for i in range(len(delx_list))]
 nx_list = [int(10000/delx_list[i]) for i in range(len(delx_list))]
 print("nx_list ", nx_list)
