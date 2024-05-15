@@ -146,9 +146,6 @@ fig.savefig("thetaerrors.png")
 plt.show()
 
 
-
-
-
 '''
 nx = 128, dt=0.1
 nx = 64, dt = 0.25
