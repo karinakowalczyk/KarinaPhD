@@ -2,7 +2,7 @@ from firedrake import *
 import numpy as np
 import matplotlib.pyplot as plt
 
-mesh_sizes = np.array([1/10, 1/20, 1/40, 1/80, 1/125]) 
+mesh_sizes = np.array([1/10, 1/20, 1/40, 1/80, 1/125, 1/160]) 
 uerrors = np.zeros(len(mesh_sizes))
 thetaerrors = np.zeros(len(mesh_sizes))
 
