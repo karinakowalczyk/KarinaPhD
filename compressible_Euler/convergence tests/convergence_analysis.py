@@ -96,7 +96,7 @@ with CheckpointFile("checkpointVortex125.h5", 'r') as file:
     u0, rho0, theta0, _ = U0.subfunctions
     U100 = file.load_function(mesh, "Un", idx =128)
     u100, rho100, theta100, _ = U100.subfunctions
-    uerror = norm(u100 - u0)
+    uerror = norm(u100 - u0)/norm(u0)
     thetaerror = norm(theta100 - theta0)/norm(theta0)
     uerrors[index] = uerror
     thetaerrors[index] = thetaerror
@@ -105,7 +105,6 @@ with CheckpointFile("checkpointVortex125.h5", 'r') as file:
     print("error theta : ", sqrt(assemble(inner(theta100 - theta0, theta100 - theta0)*dx)))
 
 index+=1
-'''
 
 with CheckpointFile("checkpointVortex160.h5", 'r') as file:
     mesh = file.load_mesh("mesh")
@@ -114,7 +113,7 @@ with CheckpointFile("checkpointVortex160.h5", 'r') as file:
     u0, rho0, theta0, _ = U0.subfunctions
     U100 = file.load_function(mesh, "Un", idx =128)
     u100, rho100, theta100, _ = U100.subfunctions
-    uerror = norm(u100 - u0)
+    uerror = norm(u100 - u0)/norm(u0)
     thetaerror = norm(theta100 - theta0)/norm(theta0)
     uerrors[index] = uerror
     thetaerrors[index] = thetaerror
@@ -125,7 +124,10 @@ with CheckpointFile("checkpointVortex160.h5", 'r') as file:
 '''
 #uerrors = np.array([0.02345874, 0.00715841, 0.00145645, 0.00024]) 
 #thetaerrors = np.array([1.58243427e-02, 3.73220993e-03, 6.18298058e-04, 1.23099994e-04])
-  
+uerrors = [0.02345874, 0.00715841, 0.00145645, 0.00024, 0.07708535] 
+thetaerrors = [1.58243427e-02, 3.73220993e-03, 6.18298058e-04, 1.23099994e-04, 7.81958405e-05]
+'''
+
 print(uerrors, thetaerrors)   
 
 hpower = mesh_sizes**2
