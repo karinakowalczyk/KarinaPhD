@@ -2,7 +2,7 @@ from firedrake import *
 import numpy as np
 import matplotlib.pyplot as plt
 
-mesh_sizes = np.array([1/10, 1/20, 1/40, 1/80, 1/160]) 
+mesh_sizes = np.array([1/10, 1/20, 1/40, 1/80, 1/125]) 
 uerrors = np.zeros(len(mesh_sizes))
 thetaerrors = np.zeros(len(mesh_sizes))
 
@@ -88,7 +88,7 @@ with CheckpointFile("checkpointVortex80.h5", 'r') as file:
     
 index +=1
 
-'''
+
 with CheckpointFile("checkpointVortex125.h5", 'r') as file:
     mesh = file.load_mesh("mesh")
     print("meshes loaded")
@@ -122,8 +122,9 @@ with CheckpointFile("checkpointVortex160.h5", 'r') as file:
     print("error rho : ", sqrt(assemble(inner(rho100 - rho0,rho100 - rho0)*dx)))
     print("error theta : ", sqrt(assemble(inner(theta100 - theta0, theta100 - theta0)*dx)))
 
-#uerrors = np.array([0.00715841, 0.00145645, 0.00024, 0.04347619]) 
-#thetaerrors = np.array([3.73220993e-03, 6.18298058e-04, 1.23099994e-04, 7.31675643e-05])
+'''
+#uerrors = np.array([0.02345874, 0.00715841, 0.00145645, 0.00024]) 
+#thetaerrors = np.array([1.58243427e-02, 3.73220993e-03, 6.18298058e-04, 1.23099994e-04])
   
 print(uerrors, thetaerrors)   
 
