@@ -6,9 +6,9 @@ import numpy as np
 
 sparameters_star = {
     "snes_monitor": None,
-    #"snes_atol": 1e-20,
-    #"snes_rtol": 1e-7,
-    "snes_stol": 1e-20,
+    "snes_atol": 1e-50,
+    "snes_rtol": 1e-7,
+    "snes_stol": 1e-50,
     "ksp_monitor_true_residual": None,
     "ksp_converged_reason": None,
     "snes_converged_reason": None,
