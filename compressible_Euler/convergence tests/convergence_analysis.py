@@ -105,7 +105,7 @@ with CheckpointFile("checkpointVortex125.h5", 'r') as file:
     print("error theta : ", sqrt(assemble(inner(theta100 - theta0, theta100 - theta0)*dx)))
 
 index+=1
-
+'''
 with CheckpointFile("checkpointVortex160.h5", 'r') as file:
     mesh = file.load_mesh("mesh")
     print("meshes loaded")
@@ -120,12 +120,12 @@ with CheckpointFile("checkpointVortex160.h5", 'r') as file:
     print("error u : ", sqrt(assemble(inner(u100 - u0,u100 - u0)*dx)))
     print("error rho : ", sqrt(assemble(inner(rho100 - rho0,rho100 - rho0)*dx)))
     print("error theta : ", sqrt(assemble(inner(theta100 - theta0, theta100 - theta0)*dx)))
-
+'''
 '''
 #uerrors = np.array([0.02345874, 0.00715841, 0.00145645, 0.00024]) 
 #thetaerrors = np.array([1.58243427e-02, 3.73220993e-03, 6.18298058e-04, 1.23099994e-04])
-uerrors = [0.02345874, 0.00715841, 0.00145645, 0.00024, 0.07708535] 
-thetaerrors = [1.58243427e-02, 3.73220993e-03, 6.18298058e-04, 1.23099994e-04, 7.81958405e-05]
+thetaerrors = [2.34587395e-02, 7.15841485e-03, 1.45645108e-03, 2.39995710e-04, 7.74902166e-05, 4.37044079e-05]
+uerrors = [1.58243427e-02, 3.73220993e-03, 6.18298058e-04, 1.23099994e-04, 7.81958405e-05, 7.31675643e-05]
 '''
 
 print(uerrors, thetaerrors)   
@@ -135,7 +135,7 @@ hpower = mesh_sizes**2
 fig, axes = plt.subplots()
 axes.set_title("Loglog plot of velocity errors")
 plt.loglog(mesh_sizes, uerrors, color = "blue", label = "u-error", marker = ".")
-plt.loglog(mesh_sizes, 1e-1*hpower, color = "orange", label = "h^2", marker = ".")
+plt.loglog(mesh_sizes, hpower, color = "orange", label = "h^2", marker = ".")
 axes.legend()
 fig.savefig("uerrors.png")
 plt.show()
