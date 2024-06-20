@@ -8,7 +8,7 @@ from firedrake import (SpatialCoordinate, Function, as_vector,
                        NonlinearVariationalSolver,
                        DirichletBC,
                        dx, dS_h, dS_v, ds_t, ds_b, ds_tb,
-                       dot, sign, inner, grad,
+                       dot, sign, inner, grad, norm,
                        curl, cross, jump, perp, div,
                        File, CheckpointFile,
                        assemble
@@ -43,11 +43,14 @@ class compressibleEulerEquations:
         self.sponge_fct = False
         self.Parameters = Parameters()
         self.slice_3D = slice_3D
+        self.exact_sol = None
         self.n = FacetNormal(mesh)
         self.mesh_periodic = mesh_periodic
         self.checkpointing = False
         self.checkpoint_path= " "
         self.check_freq = 50 #checkpointing frequency, checkpoint every 50th time step
+        self.out_error = False
+        self.error_file = " "
 
         self.rhs = rhs
         if self.rhs:
@@ -66,7 +69,7 @@ class compressibleEulerEquations:
         else:
             self.V0, self.Vv, self.Vp, self.Vt, self.Vtr = build_spaces(self.mesh, self.vertical_degree, self.horizontal_degree)
 
-        self.W = self.Vt*self.V0*self.Vp*self.Vtr
+        self.W = self.V0*self.Vp*self.Vt*self.Vtr
 
         self.Pi0 = Function(self.Vp)
         self.rho0 = Function(self.Vp)
@@ -93,8 +96,8 @@ class compressibleEulerEquations:
 
         Un = Function(self.W, name = "Un")
         Unp1 = Function(self.W, name = "Unp1")
-        thetan, un, rhon, lambdarn = (Un).split()
-        thetanp1, unp1, rhonp1, lambdarnp1 = split(Unp1)
+        un, rhon, thetan, lambdarn = (Un).split()
+        unp1, rhonp1, thetanp1, lambdarnp1 = split(Unp1)
 
         unph = 0.5*(un + unp1)
         thetanph = 0.5*(thetan + thetanp1)
@@ -185,7 +188,7 @@ class compressibleEulerEquations:
                     )
 
         # set up test functions and the nonlinear problem
-        chi, w, phi, gammar = TestFunctions(self.W)
+        w, phi, chi, gammar = TestFunctions(self.W)
         # a = Constant(10000.0)
         eqn = u_eqn(w, gammar) + theta_eqn(chi) + rho_eqn(phi) # + gamma * rho_eqn(div(w))
 
@@ -199,15 +202,17 @@ class compressibleEulerEquations:
             f = Constant(1.0e-4)
             eqn += f*inner(w, cross(self.zvec, unph))*dx
 
+        if self.dim == 2:
+            x, z = SpatialCoordinate(self.mesh)
+        elif self.dim == 3:
+            x, y, z = SpatialCoordinate(self.mesh)
+        else:
+            raise NotImplementedError
+
         if self.sponge_fct:
             mubar = 0.15
             zc = self.H-10000.
-            if self.dim == 2:
-                _, z = SpatialCoordinate(self.mesh)
-            elif self.dim == 3:
-                _, _, z = SpatialCoordinate(self.mesh)
-            else:
-                raise NotImplementedError
+            
             mu_top = conditional(z <= zc, 0.0, mubar*sin((np.pi/2.)*(z-zc)/(self.H-zc))**2)
             mu = Function(self.Vp).interpolate(mu_top/self.dT)
             eqn += self.dT*mu*inner(w, self.zvec)*inner(unph, self.zvec)*dx
@@ -215,8 +220,8 @@ class compressibleEulerEquations:
         nprob = NonlinearVariationalProblem(eqn, Unp1)
 
         if not self.mesh_periodic:
-            bc1 = DirichletBC(self.W.sub(1), 0., 1)
-            bc2 = DirichletBC(self.W.sub(1), 0., 2)
+            bc1 = DirichletBC(self.W.sub(0), 0., 1)
+            bc2 = DirichletBC(self.W.sub(0), 0., 2)
             nprob = NonlinearVariationalProblem(eqn, Unp1, bcs=[bc1, bc2])
         self.solver = NonlinearVariationalSolver(nprob, solver_parameters=self.solver_params)
 
@@ -309,6 +314,14 @@ class compressibleEulerEquations:
                 afile.save_mesh(self.mesh)
                 afile.save_function(Un, idx = idx_count)
             idx_count += 1 
+            if self.exact_sol:
+                u_exact, rho_exact = self.exact_sol(x,z,t)
+                uerror = norm(un-u_exact)/norm(u_exact)
+                rhoerror = norm(rhon-rho_exact)/norm(rho_exact)
+                with open(self.path_out+"_uerrors.txt", 'w') as file_uerr:
+                    file_uerr.write(str(uerror)+'\n')
+                with open(self.path_out+"_rhoerrors.txt", 'w') as file_rhoerr:
+                    file_rhoerr.write(str(rhoerror)+'\n')
 
         while t < tmax - 0.5*dt:
             step+=1
@@ -326,6 +339,17 @@ class compressibleEulerEquations:
                     with CheckpointFile(self.checkpoint_path, 'a') as afile:
                             afile.save_function(Un, idx = idx_count)
                     idx_count += 1 
+                    if self.exact_sol:
+                        u_exact, rho_exact = self.exact_sol(x,z,t)
+                        uerror = norm(un-u_exact)/norm(u_exact)
+                        rhoerror = norm(rhon-rho_exact)/norm(rho_exact)
+                        #rhoerror = norm(rhon - self.rho0)/norm(self.rho0)
+            
+                        with open(self.path_out+"_uerrors.txt", 'a') as file_uerr:
+                            file_uerr.write(str(uerror)+'\n')
+                        with open(self.error_file+"_rhoerrors.txt", 'a') as file_rhoerr:
+                            file_rhoerr.write(str(rhoerror)+'\n')
+
 
             rhon_pert.assign(rhon - self.rho0)
             thetan_pert.assign(thetan - self.theta_b)
@@ -343,7 +367,7 @@ class compressibleEulerEquations:
                 tdump -= dumpt
             PETSc.Sys.Print(self.solver.snes.getIterationNumber())
             #step+=1
-
+                    
             
         print("Total index count = ", idx_count)
         print("number time steps", step)

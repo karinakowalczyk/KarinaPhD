@@ -7,7 +7,7 @@ import numpy as np
 sparameters_star = {
     "snes_monitor": None,
     "snes_atol": 1e-50,
-    "snes_rtol": 1e-7,
+    "snes_rtol": 1e-8,
     "snes_stol": 1e-50,
     "ksp_monitor_true_residual": None,
     "ksp_converged_reason": None,
@@ -29,7 +29,56 @@ sparameters_star = {
     # "assembled_pc_star_sub_pc_factor_nonzeros_along_diagonal": 1e-8,
 }
 
+sparameters = {
+        "snes_converged_reason": None,
+        "mat_type": "matfree",
+        "ksp_type": "gmres",
+        "ksp_converged_reason": None,
+        "ksp_atol": 1e-8,
+        "ksp_rtol": 1e-8,
+        "ksp_max_it": 400,
+        "pc_type": "python",
+        "pc_python_type": "firedrake.AssembledPC",
+        "assembled_pc_type": "python",
+        "assembled_pc_python_type": "firedrake.ASMStarPC",
+        "assembled_pc_star_construct_dim": 0,
+        'assembled_pc_star_sub_sub_pc_factor_mat_solver_type': 'mumps',
+        "assembled_pc_star_sub_sub_pc_factor_mat_ordering_type": "rcm"
+    }
+
 params = {'ksp_type': 'preonly', 'pc_type': 'lu'}
+
+def exact_solution (x, y, t):
+
+    xc = L/2 + t*uc
+    yc = L/2 + t*vc
+
+    #if xc >+ L:
+    #    xc -=L
+    #if yc>=L:
+    #    yc -=L
+
+    R = 0.4*L #radius of vortex
+    distx = conditional(abs(x-xc)>L/2, abs(x-xc)-L/2, abs(x-xc))
+    disty = conditional(abs(y-yc)>L/2, abs(y-yc)-L/2, abs(y-yc))
+    diffx = x-xc
+    diffy = y-yc
+    r = conditional(abs(x-xc) <= L/2, sqrt(diffx*diffx + diffy*diffy)/R, sqrt((L-abs(x-xc))**2 + (L-abs(y-yc))**2)/R)
+    print(type(r))
+    #phi = atan2(x-xc, y - yc)
+
+    rhoc = 1.
+    rhob = conditional(r>=1, rhoc,  1- 0.5*(1-r**2)**6)
+
+    uth = (1024 * (1.0 - r)**6 * (r)**6)
+    #phi = atan2(x-xc, y-yc)
+    diffx = conditional(abs(x-xc) <= L/2, x - xc, L-abs(x-xc))
+    diffy = conditional(abs(y-yc) <= L/2, y - yc, L-abs(y-yc))
+    ux = conditional(r>=1, uc, uc - uth * diffy/(r*R))
+    
+    uy = conditional(r>=1, vc, vc + uth * diffx/(r*R))
+    u0 = as_vector([ux,uy])
+    return u0, rhob
 
 #define delx and delt so that delx/delt is constant, since we expect second order 
 #convergence in both, delt and delx 
@@ -37,12 +86,12 @@ uc = 100.
 vc = 100.
 L = 10000.
 H = 10000.
-delx_list = [80]
-delt_list = [0.125/16 for i in range(len(delx_list))]
-n_timesteps = [100/delt_list[i] for i in range(len(delx_list))]
+delx_list = [500., 250., 125., 125/2]
+delt_list = [0.0025]#[0.125/16 for i in range(len(delx_list))]
+n_timesteps = [100/delt_list[i] for i in range(len(delt_list))]
 nx_list = [int(10000/delx_list[i]) for i in range(len(delx_list))]
 print("nx_list ", nx_list)
-check_freqs= [100 for i in range(len(delx_list))]
+check_freqs= [10 for i in range(len(delx_list))]
 
 #delx_list = [500/(2**i) for i in range(4)]
 print("delx_list = ", delx_list)
@@ -84,20 +133,22 @@ for i in range(len(delx_list)):
 
     #mesh.coordinates.assign(new_coords)
     ##new_coords = Function(Vc).interpolate(as_vector([x,y -(4/H**2) * 0.5*(sin(2*pi*x/L))*((y-H/2)**2 - H**2/4)] ))
+    x, y = SpatialCoordinate(mesh)
 
     xc = L/2 #+ t*uc
     yc = L/2 #+ t*vc
 
     R = 0.4*L #radius of vortex
     r = sqrt((x - xc)**2 + (y - yc)**2)/R
-    phi = atan2((y - yc),(x-xc))
+    phi = atan2(x-xc, y - yc)
 
     rhoc = 1.
     rhob = conditional(r>=1, rhoc,  1- 0.5*(1-r**2)**6)
 
     uth = (1024 * (1.0 - r)**6 * (r)**6)
-    ux = conditional(r>=1, uc, uc + uth * (-(y-yc)/(r*R)))
-    uy = conditional(r>=1, vc, vc + uth * (+(x-xc)/(r*R)))
+    phi = atan2(x-xc, y-yc)
+    ux = conditional(r>=1, uc, uc - uth * (y - yc)/(r*R))
+    uy = conditional(r>=1, vc, vc + uth * (x - xc)/(r*R))
     u0 = as_vector([ux,uy])
 
 
@@ -195,10 +246,11 @@ for i in range(len(delx_list)):
 
     R0 = 287.
     gamma = 1.4
+    kappa = 2./7.
     pref = Parameters.p_0
 
     T = p/(rhob*R0)
-    thetab = T*(pref/p)**0.286
+    thetab = T*(pref/p)**kappa
 
     Vp = FunctionSpace(mesh, "DG", 1)
     p_out = Function(Vp, name = "p_0").interpolate(p)
@@ -213,7 +265,7 @@ for i in range(len(delx_list)):
     Problem.u0 = u0
     Problem.rhob = rhob
     Problem.Pib = pib
-    Problem.solver_params = sparameters_star
+    Problem.solver_params = sparameters
     Problem.path_out = "../Results/convergence/vortex"+str(nx)
     Problem.thetab = thetab
     Problem.theta_init_pert = 0
@@ -221,17 +273,20 @@ for i in range(len(delx_list)):
     Problem.checkpointing = True
     Problem.checkpoint_path = "checkpointVortex"+str(nx)+".h5"
     Problem.check_freq = check_freqs[i]
+    Problem.out_error =  True
+    #Problem.error_file = "../Results/convergence/vortex"
+    Problem.exact_sol = exact_solution
 
     '''
     n = 32, dt = 0.5, courant = 0.16
     '''
     #dt = 9.7e-4
-    dt = delt_list[i]
+    dt = delt_list[0]
     
     print("dt = ", dt)
 
 
-    tmax = 100.
+    tmax = 10.
     dumpt = 100*dt
     print ("courant = ", uc*dt/delx)
 
