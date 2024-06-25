@@ -8,7 +8,7 @@ from firedrake import (SpatialCoordinate, Function, as_vector,
                        NonlinearVariationalSolver,
                        DirichletBC,
                        dx, dS_h, dS_v, ds_t, ds_b, ds_tb,
-                       dot, sign, inner, grad, norm,
+                       dot, sign, inner, grad, norm, outer, 
                        curl, cross, jump, perp, div,
                        File, CheckpointFile,
                        assemble
@@ -121,10 +121,21 @@ class compressibleEulerEquations:
         def Upwind(r):
             return 0.5*(sign(dot(unph_mean, self.n(r)))+1)
 
+        def unn_vert(r):
+            return 0.5*(
+                        dot(unph(r), self.n(r))
+                        + abs(dot(unph(r), self.n(r)))
+                        )
+
+        def Upwind_vert(r):
+            return 0.5*(sign(dot(unph(r), self.n(r)))+1)
+
+
         if self.dim == 2:
+            perp_u_upwind_vert = lambda q: Upwind_vert('+')*perp(q('+')) + Upwind_vert('-')*perp(q('-'))
             perp_u_upwind = lambda q: Upwind('+')*perp(q('+')) + Upwind('-')*perp(q('-'))
 
-            def uadv_eq(w):
+            def uadv_eq_vec_inv(w):
                 return(-inner(perp(grad(inner(w, perp(unph)))), unph)*dx
                        - inner(jump(inner(w, perp(unph)), self.n), perp_u_upwind(unph))*(dS_v)
                        - inner(jump(inner(w, perp(unph)), self.n), perp_u_upwind(unph))*(dS_h)
@@ -134,7 +145,10 @@ class compressibleEulerEquations:
                        # +Constant(1e-50)*jump(unph,self.n)*jump(w,self.n)*dS_h
                        # +Constant(1e-50)*inner(unph,self.n)*inner(w,self.n)*ds_tb
                        )
-
+            def uadv_eq(w):
+                return (-inner(div(outer(w, unph)), unph)*dx 
+                        + dot(jump(w),(unn('+')*unph('+') - unn('-')*unph('-')))*dS)
+        
         elif self.dim == 3:
 
             def uadv_eq(w):
@@ -347,7 +361,7 @@ class compressibleEulerEquations:
             
                         with open(self.path_out+"_uerrors.txt", 'a') as file_uerr:
                             file_uerr.write(str(uerror)+'\n')
-                        with open(self.error_file+"_rhoerrors.txt", 'a') as file_rhoerr:
+                        with open(self.path_out+"_rhoerrors.txt", 'a') as file_rhoerr:
                             file_rhoerr.write(str(rhoerror)+'\n')
 
 
