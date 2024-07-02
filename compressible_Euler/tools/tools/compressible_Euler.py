@@ -207,9 +207,9 @@ class compressibleEulerEquations:
         eqn = u_eqn(w, gammar) + theta_eqn(chi) + rho_eqn(phi) # + gamma * rho_eqn(div(w))
 
         if self.rhs:
-            eqn += inner(self.rhs_u, w)*dx
-            eqn += self.rhs_rho*phi*dx
-            eqn += self.rhs_theta*chi*dx
+            eqn -= inner(self.rhs_u, w)*dx
+            #eqn += self.rhs_theta*chi*dx
+            ##eqn += self.rhs_rho*phi*dx
             print("RHS added to equatioin")
 
         if self.dim == 3:
@@ -301,14 +301,40 @@ class compressibleEulerEquations:
         
 
         file_out = File(self.path_out + '.pvd')
+        file_exact = File(self.path_out+'exact.pvd')
 
         rhon_pert = Function(self.Vp)
         thetan_pert = Function(self.Vt)
         rhon_pert.assign(rhon - self.rho0)
         thetan_pert.assign(thetan - self.theta_b)
 
-        file_out.write(un, rhon_pert, thetan_pert, Courant)
+        t = 0.
+        if self.exact_sol:
+            u_exact, rho_exact, theta_exact = self.exact_sol(x,z,t)
+            uerror = norm(un-u_exact)
+            thetaerror = norm(thetan-theta_exact)/norm(theta_exact)
+            rhoerror = norm(rhon-rho_exact)/norm(rho_exact)
+            with open(self.path_out+"_uerrors.txt", 'w') as file_uerr:
+                file_uerr.write(str(uerror)+'\n')
+            with open(self.path_out+"_rhoerrors.txt", 'w') as file_rhoerr:
+                file_rhoerr.write(str(rhoerror)+'\n')
+            with open(self.path_out+"_thetaerrors.txt", 'w') as file_thetaerr:
+                file_thetaerr.write(str(thetaerror)+'\n')
+            
+            #u_ex_out = Function(self.V0, name = 'u_ex')
+            #u_ex_out.project(u_exact)
+            #rho_ex_out = Function(self.Vp, name = 'rho_ex').interpolate(rho_exact)
+            #u_exact_diff = Function(self.V0, name = 'u_diff').project(un - u_exact)
+            #theta_exact_diff = Function(self.Vt, name = 'theta_diff').interpolate(thetan - theta_exact)
+            #rho_exact_diff = Function(self.Vp, name = 'rho_diff').interpolate(rhon - rho_exact)
 
+        
+        if self.exact_sol:
+            file_out.write(un, rhon_pert, thetan_pert, Courant) # u_ex_out, u_exact_diff, rho_exact_diff, theta_exact_diff)
+        else:
+            file_out.write(un, rhon_pert, thetan_pert, Courant)
+
+        
         file = File(self.path_out + '_nonpert.pvd')
         file.write(un, rhon, thetan, Courant)
 
@@ -328,14 +354,7 @@ class compressibleEulerEquations:
                 afile.save_mesh(self.mesh)
                 afile.save_function(Un, idx = idx_count)
             idx_count += 1 
-            if self.exact_sol:
-                u_exact, rho_exact = self.exact_sol(x,z,t)
-                uerror = norm(un-u_exact)/norm(u_exact)
-                rhoerror = norm(rhon-rho_exact)/norm(rho_exact)
-                with open(self.path_out+"_uerrors.txt", 'w') as file_uerr:
-                    file_uerr.write(str(uerror)+'\n')
-                with open(self.path_out+"_rhoerrors.txt", 'w') as file_rhoerr:
-                    file_rhoerr.write(str(rhoerror)+'\n')
+        
 
         while t < tmax - 0.5*dt:
             step+=1
@@ -347,22 +366,13 @@ class compressibleEulerEquations:
 
             Un.assign(Unp1)
             
-            if self.checkpointing:
-                if step%self.check_freq==0:
+            if step%self.check_freq==0:    
+                if self.checkpointing:
                     print("CHECKPOINTING for time t ", t, "with index", idx_count)
                     with CheckpointFile(self.checkpoint_path, 'a') as afile:
                             afile.save_function(Un, idx = idx_count)
                     idx_count += 1 
-                    if self.exact_sol:
-                        u_exact, rho_exact = self.exact_sol(x,z,t)
-                        uerror = norm(un-u_exact)/norm(u_exact)
-                        rhoerror = norm(rhon-rho_exact)/norm(rho_exact)
-                        #rhoerror = norm(rhon - self.rho0)/norm(self.rho0)
-            
-                        with open(self.path_out+"_uerrors.txt", 'a') as file_uerr:
-                            file_uerr.write(str(uerror)+'\n')
-                        with open(self.path_out+"_rhoerrors.txt", 'a') as file_rhoerr:
-                            file_rhoerr.write(str(rhoerror)+'\n')
+                
 
 
             rhon_pert.assign(rhon - self.rho0)
@@ -377,7 +387,31 @@ class compressibleEulerEquations:
             PETSc.Sys.Print('lambda max min', lambdarn.dat.data.max(), lambdarn.dat.data.min())
 
             if tdump > dumpt - dt*0.5:
-                file_out.write(un, rhon_pert, thetan_pert, Courant)
+
+                if self.exact_sol:
+                    u_exact, rho_exact, theta_exact = self.exact_sol(x,z,t)
+                    uerror = norm(un-u_exact)
+                    thetaerror = norm(thetan-theta_exact)/norm(theta_exact)
+                    rhoerror = norm(rhon-rho_exact)/norm(rho_exact)
+                    #rhoerror = norm(rhon - self.rho0)/norm(self.rho0)
+        
+                    with open(self.path_out+"_uerrors.txt", 'a') as file_uerr:
+                        file_uerr.write(str(uerror)+'\n')
+                    with open(self.path_out+"_rhoerrors.txt", 'a') as file_rhoerr:
+                        file_rhoerr.write(str(rhoerror)+'\n')
+                    with open(self.path_out+"_thetaerrors.txt", 'a') as file_thetaerr:
+                        file_thetaerr.write(str(thetaerror)+'\n')
+                    #u_ex_out.project(u_exact)
+                    #u_ex_out.project(u_exact)
+                    #rho_ex_out.interpolate(rho_exact)
+                    #u_exact_diff.project(un - u_exact)
+                    #rho_exact_diff.interpolate(rhon - rho_exact)
+                    #theta_exact_diff.interpolate(thetan - theta_exact)
+
+                if self.exact_sol:
+                    file_out.write(un, rhon_pert, thetan_pert, Courant)# u_ex_out, u_exact_diff, rho_exact_diff, theta_exact_diff)
+                else:
+                    file_out.write(un, rhon_pert, thetan_pert, Courant)
                 tdump -= dumpt
             PETSc.Sys.Print(self.solver.snes.getIterationNumber())
             #step+=1
