@@ -131,7 +131,7 @@ vc = 100.
 L = 10000.
 H = 10000.
 delx_list = [80.]
-delt_list = [0.00025]#[0.125/16 for i in range(len(delx_list))]
+delt_list = [0.00005]#[0.125/16 for i in range(len(delx_list))]
 n_timesteps = [100/delt_list[i] for i in range(len(delt_list))]
 nx_list = [int(10000/delx_list[i]) for i in range(len(delx_list))]
 print("nx_list ", nx_list)
@@ -331,8 +331,8 @@ for i in range(len(delx_list)):
     print("dt = ", dt)
 
 
-    tmax = 10.
-    dumpt = 40*dt
+    tmax = 2.
+    dumpt = dt
     print ("courant = ", uc*dt/delx)
 
     Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt, hydrostatic_balance_background=False)
