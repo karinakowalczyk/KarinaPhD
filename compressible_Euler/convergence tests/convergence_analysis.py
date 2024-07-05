@@ -1,8 +1,9 @@
 from firedrake import *
 import numpy as np
 import matplotlib.pyplot as plt
+from tools import build_spaces
 
-mesh_sizes = np.array([1/20, 1/40, 1/80, 1/160]) 
+mesh_sizes = np.array([1/10, 1/20, 1/40, 1/80, 1/125]) 
 nx_list = [20, 40, 80, 160]
 uerrors = np.zeros(len(mesh_sizes))
 thetaerrors = np.zeros(len(mesh_sizes))
@@ -22,9 +23,31 @@ currently run on Connors machine is nx=160
 '''
 DEFINE PERIODIC EXACT SOL
 '''
-'''
-with CheckpointFile("checkpointVortex80.h5", 'r') as file:
-    mesh = file.load_mesh("mesh")
+uc = 100.
+vc = 100.
+L = 10000.
+H = 10000.
+distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
+
+nx =80
+delx = 125.
+m = PeriodicIntervalMesh(nx, L, distribution_parameters =
+                            distribution_parameters)
+mesh = ExtrudedMesh(m, nx, layer_height=delx, periodic=True, name='mesh')
+x, y = SpatialCoordinate(mesh)
+
+Vc = mesh.coordinates.function_space()
+print(Vc)
+
+#Vc = VectorFunctionSpace(mesh, "DG", 2)
+xc = L/2
+y_m = 300.
+sigma_m = 500.
+#y_s = y_m*exp(-((x - xc)/sigma_m)**2)
+y_s = y_m*cos(2*pi*(x-xc)/L)
+y_expr = y+y_s
+new_coords = Function(Vc).interpolate(as_vector([x,y_expr]))
+#mesh.coordinates.assign(new_coords)
 x, y = SpatialCoordinate(mesh)
 def exact_solution (x, y, t):
 
@@ -37,11 +60,12 @@ def exact_solution (x, y, t):
     #    yc -=L
 
     R = 0.4*L #radius of vortex
-    distx = conditional(abs(x-xc)>L/2, abs(x-xc)-L/2, abs(x-xc))
-    disty = conditional(abs(y-yc)>L/2, abs(y-yc)-L/2, abs(y-yc))
+    distx = conditional(abs(x-xc)>L/2, L-abs(x-xc), abs(x-xc))
+    disty = conditional(abs(y-yc)>L/2, L-abs(y-yc), abs(y-yc))
     diffx = x-xc
     diffy = y-yc
-    r = conditional(abs(x-xc) <= L/2, sqrt(diffx*diffx + diffy*diffy)/R, sqrt((L-abs(x-xc))**2 + (L-abs(y-yc))**2)/R)
+    r = sqrt(distx*distx + disty*disty)/R
+    #r = conditional(abs(x-xc) <= L/2, sqrt(diffx*diffx + diffy*diffy)/R, sqrt((L-abs(x-xc))**2 + (L-abs(y-yc))**2)/R)
     print(type(r))
     #phi = atan2(x-xc, y - yc)
 
@@ -50,13 +74,17 @@ def exact_solution (x, y, t):
 
     uth = (1024 * (1.0 - r)**6 * (r)**6)
     #phi = atan2(x-xc, y-yc)
-    diffx = conditional(abs(x-xc) <= L/2, x - xc, L-abs(x-xc))
-    diffy = conditional(abs(y-yc) <= L/2, y - yc, L-abs(y-yc))
+    signx = conditional(x>xc,-1, +1 )
+    signy = conditional(y>yc,-1, +1 )
+    diffx = conditional(abs(x-xc) <= L/2, x - xc, signx*(L-abs(x-xc)))
+    diffy = conditional(abs(y-yc) <= L/2, y - yc, signy*(L-abs(y-yc)))
+    #diffx = conditional(abs(x-xc) <= L/2, x - xc, L-abs(x-xc))
+    #diffy = conditional(abs(y-yc) <= L/2, y - yc, L-abs(y-yc))
     ux = conditional(r>=1, uc, uc - uth * diffy/(r*R))
     
     uy = conditional(r>=1, vc, vc + uth * diffx/(r*R))
     u0 = as_vector([ux,uy])
-    return u0
+    return u0, rhob
 
 cell = mesh._base_mesh.ufl_cell().cellname()
 CG_1 = FiniteElement("CG", interval, 1)
@@ -64,18 +92,20 @@ DG_0 = FiniteElement("DG", interval, 0)
 P1P0 = HDiv(TensorProductElement(CG_1, DG_0))
 P0P1 = HDiv(TensorProductElement(DG_0, CG_1))
 elt = P1P0 + P0P1
-V = FunctionSpace(mesh, elt)
+V, _, V1, _, _ = build_spaces(mesh, 1, 1)
 u_out = Function(V)
+rho_out = Function(V1)
 file_exact = File("../Results/convergence/vortex_exact.pvd")
-ts = [0., 25., 50., 75., 100.]
+ts = [0, 25., 50., 100.]
 for t in ts:
     print(t)
-    u = exact_solution(x, y, t)
+    u, rho = exact_solution(x, y, t)
     
     u_out.project(u)
+    rho_out.interpolate(rho)
 
-    file_exact.write(u_out)
-
+    file_exact.write(u_out, rho_out)
+'''
 index =0
 
 file_test = File("test_checkpointed.pvd")
@@ -293,35 +323,90 @@ with open("../Results/convergence/vortex40_uerrors.txt") as file:
 with open("../Results/convergence/vortex80_uerrors.txt") as file:
     for line in file:
         uerrors80.append(float(line.rstrip()))
-with open("../Results/convergence/vortex160_uerrors.txt") as file:
+with open("../Results/convergence/vortex125_uerrors.txt") as file:
     for line in file:
-        uerrors160.append(float(line.rstrip()))
+        uerrors125.append(float(line.rstrip()))
 
-print(len(uerrors160))
+print(len(uerrors125))
 i=-1
-uerrors = np.array([uerrors20[i], uerrors40[i], uerrors80[i], uerrors160[i]])
+uerrors = np.array([uerrors10[-1], uerrors20[-1], uerrors40[-1], uerrors80[199], uerrors125[199]])
+
+rhoerrors10 =[]
+rhoerrors20 =[]
+rhoerrors40 =[]
+rhoerrors80 =[]
+rhoerrors125 =[]
+rhoerrors160 =[]
+
+with open("../Results/convergence/vortex10_rhoerrors.txt") as file:
+    for line in file:
+        rhoerrors10.append(float(line.rstrip()))
+with open("../Results/convergence/vortex20_rhoerrors.txt") as file:
+    for line in file:
+        rhoerrors20.append(float(line.rstrip()))
+with open("../Results/convergence/vortex40_rhoerrors.txt") as file:
+    for line in file:
+        rhoerrors40.append(float(line.rstrip()))
+with open("../Results/convergence/vortex80_rhoerrors.txt") as file:
+    for line in file:
+        rhoerrors80.append(float(line.rstrip()))
+with open("../Results/convergence/vortex160_rhoerrors.txt") as file:
+    for line in file:
+        rhoerrors160.append(float(line.rstrip()))
+
+print(len(rhoerrors80))
+rhoerrors = np.array([rhoerrors10[i], rhoerrors20[i], rhoerrors40[i], rhoerrors80[i], rhoerrors160[i]])
+
+thetaerrors10 =[]
+thetaerrors20 =[]
+thetaerrors40 =[]
+thetaerrors80 =[]
+thetaerrors125 =[]
+thetaerrors160 =[]
+
+with open("../Results/convergence/vortex10_thetaerrors.txt") as file:
+    for line in file:
+        thetaerrors10.append(float(line.rstrip()))
+with open("../Results/convergence/vortex20_thetaerrors.txt") as file:
+    for line in file:
+        thetaerrors20.append(float(line.rstrip()))
+with open("../Results/convergence/vortex40_thetaerrors.txt") as file:
+    for line in file:
+        thetaerrors40.append(float(line.rstrip()))
+with open("../Results/convergence/vortex80_thetaerrors.txt") as file:
+    for line in file:
+        thetaerrors80.append(float(line.rstrip()))
+with open("../Results/convergence/vortex160_thetaerrors.txt") as file:
+    for line in file:
+        thetaerrors160.append(float(line.rstrip()))
+
+print(len(rhoerrors80))
+thetaerrors = np.array([thetaerrors10[i], thetaerrors20[i], thetaerrors40[i], thetaerrors80[i], thetaerrors160[i]])
 
 
 fig, axes = plt.subplots()
 axes.set_title("Loglog plot of velocity errors")
-#plt.loglog(mesh_sizes, uerrors1, color = "blue", label = "u-error", marker = ".")
-#plt.loglog(mesh_sizes, uerrors2, color = "green", label = "u-error", marker = ".")
 plt.loglog(mesh_sizes, uerrors, color = "red", label = "u-error", marker = ".")
-plt.loglog(mesh_sizes, 1e-2*hpower, color = "orange", label = "h^2", marker = ".")
+plt.loglog(mesh_sizes, 1e4*hpower, color = "orange", label = "h^2", marker = ".")
 axes.legend()
 fig.savefig("uerrors.png")
 plt.show()
 
 fig, axes = plt.subplots()
-axes.set_title("Loglog plot of theta errors")
-plt.loglog(mesh_sizes, thetaerrors1, color = "blue", label = "theta-error", marker = ".")
-plt.loglog(mesh_sizes, thetaerrors2, color = "green", label = "theta-error", marker = ".")
-plt.loglog(mesh_sizes, thetaerrors, color = "red", label = "theta-error", marker = ".")
+axes.set_title("Loglog plot of density errors")
+plt.loglog(mesh_sizes, rhoerrors, color = "red", label = "u-error", marker = ".")
 plt.loglog(mesh_sizes, hpower, color = "orange", label = "h^2", marker = ".")
 axes.legend()
-fig.savefig("thetaerrors.png")
+fig.savefig("rhoerrors.png")
 plt.show()
 
+fig, axes = plt.subplots()
+axes.set_title("Loglog plot of theta errors")
+plt.loglog(mesh_sizes, thetaerrors, color = "red", label = "u-error", marker = ".")
+plt.loglog(mesh_sizes, hpower, color = "orange", label = "h^2", marker = ".")
+axes.legend()
+fig.savefig("rhoerrors.png")
+plt.show()
 
 '''
 nx = 128, dt=0.1
