@@ -332,7 +332,7 @@ for i in range(len(delx_list)):
 
 
     tmax = 10.
-    dumpt = 1000*dt
+    dumpt = 2000*dt
     print ("courant = ", uc*dt/delx)
 
     Problem.solve(dt=dt, tmax=tmax, dumpt=dumpt, hydrostatic_balance_background=False)
