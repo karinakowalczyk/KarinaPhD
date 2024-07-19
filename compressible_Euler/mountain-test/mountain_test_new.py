@@ -11,7 +11,9 @@ in the non-hydrostatic regime
 
 sparameters_star = {
     "snes_monitor": None,
-    "snes_stol": 1e-20,
+    "snes_stol": 1e-100,
+    "snes_rtol": 1e-100,
+    "snes_atol": 1e-8,
     "ksp_monitor_true_residual": None,
     "ksp_converged_reason": None,
     "snes_converged_reason": None,
