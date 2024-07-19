@@ -390,7 +390,7 @@ class compressibleEulerEquations:
 
                 if self.exact_sol:
                     u_exact, rho_exact, theta_exact = self.exact_sol(x,z,t)
-                    uerror = norm(un-u_exact)
+                    uerror = norm(un-u_exact)/norm(u_exact)
                     thetaerror = norm(thetan-theta_exact)/norm(theta_exact)
                     rhoerror = norm(rhon-rho_exact)/norm(rho_exact)
                     #rhoerror = norm(rhon - self.rho0)/norm(self.rho0)
