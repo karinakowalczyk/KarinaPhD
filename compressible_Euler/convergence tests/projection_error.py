@@ -123,9 +123,9 @@ def project_constraint_space(u0, V, T):
 
     a = (inner(w, u)*dx - inner(w, u0)*dx
          + jump(w, n)*lambdar('+')*dS_h
-         + inner(w, n)*lambdar*ds_tb
+         + mu*lambdar*ds_tb
          + jump(u, n)*mu('+')*dS_h
-         + inner(u, n)*mu*ds_tb
+         #+ inner(u, n)*mu*ds_tb
          )
     sparameters_exact = {"mat_type": "aij",
                          'snes_monitor': None,
