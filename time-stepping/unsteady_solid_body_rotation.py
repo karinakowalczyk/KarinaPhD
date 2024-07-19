@@ -3,6 +3,7 @@ from TimeSteppingClass import *
 import timeit
 
 '''
+CONVERGENCE TEST
 Lauter test, Example 3 in https://doi.org/10.1016/j.jcp.2005.04.022
 '''
 

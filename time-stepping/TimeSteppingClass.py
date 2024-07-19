@@ -21,7 +21,7 @@ class SWEWithProjection:
         g = Constant(9.8)  # Gravitational constant
         n = FacetNormal(mesh)
         
-        # set up function spqaces
+        # set up function spaces
         self.V0 = FunctionSpace(mesh, "CG", degree=3)
         #velocity space
         element = FiniteElement("BDM", triangle, degree=2)
@@ -32,7 +32,8 @@ class SWEWithProjection:
         W = MixedFunctionSpace((V1,V2))
 
         self.ubar = Function(V1).interpolate(u_expr)
-
+        self.u0 = Function(V1).assign(self.ubar)
+        
         self.u_exact = None
         self.D_exact = None
 
@@ -45,13 +46,18 @@ class SWEWithProjection:
             b = 0
         self.b = b
         self.Dn = Function(V2, name = "D").interpolate(D_expr - b)
+        self.D0 = Function(V2, name = "D0").assign(self.Dn)
         #H_avg = assemble(D_expr*dx)
         self.Dbar = Function(V2).assign(H)
         self.Dplusb = Function(V2, name = "D+b").assign(self.Dn + self.b)
 
         #un = Function(V1_broken, name = "u").interpolate(velocity)
         self.un = Function(V1, name = "u").assign(self.ubar)
+        self.u0 = Function(V1, name = "u0").assign(self.un)
         print("u is set", norm(self.un), norm(self.Dn))
+        self.u_pert = Function(V1, name = 'delta u').assign(self.un - self.u0)
+        self.D_pert = Function(V2, name = 'delta D').assign(self.Dn - self.D0)
+
 
         self.Unp1 = Function(W)
         self.unp1, self.Dnp1 = self.Unp1.subfunctions
@@ -97,16 +103,22 @@ class SWEWithProjection:
         q = TrialFunction(self.V0)
         p = TestFunction(self.V0)
 
-        self.qn = Function(self.V0, name="Relative Vorticity")
-        self.pot_qn = Function(self.V0, name="Potential Vorticity")
+        self.qn = Function(self.V0, name="relative vorticity")
+        self.pot_qn = Function(self.V0, name="potential vorticity")
         veqn = q*p*dx + inner(perp(grad(p)), self.un)*dx
         vprob = LinearVariationalProblem(lhs(veqn), rhs(veqn), self.qn)
         qparams = {'ksp_type':'cg'}
         self.qsolver = LinearVariationalSolver(vprob, solver_parameters=qparams)
+        self.qsolver.solve()
         pot_vort_eqn = (self.Dn*q*p*dx + inner(perp(grad(p)), self.un)*dx - f*p*dx)
         pot_vort_prob = LinearVariationalProblem(lhs(pot_vort_eqn), rhs(pot_vort_eqn), self.pot_qn)
-        self.pot_vort_solver = LinearVariationalSolver(pot_vort_prob, solver_parameters=qparams) 
+        self.pot_vort_solver = LinearVariationalSolver(pot_vort_prob, solver_parameters=qparams)
+        self.pot_vort_solver.solve()
 
+        self.enstrophy0 = assemble(0.5*self.pot_qn*self.pot_qn*self.Dn*dx)
+        self.energy0 = assemble((0.5*inner(self.u0,self.u0)*self.D0 + 0.5 * g * (self.D0+self.b)**2)*dx) 
+        self.div_l20 = sqrt(assemble(div(self.u0)*div(self.u0)*dx))
+        
         #to be the solutions, initialised with un, Dn
         self.D = Function(V2).assign(self.Dn)
         self.u = Function(V1_broken).project(self.un)
@@ -125,6 +137,8 @@ class SWEWithProjection:
         du_trial = TrialFunction(V1_broken)
         w = TestFunction(V1_broken)
         a_u = inner(w, du_trial)*dx
+        a_u_slate = Tensor(a_u).inv
+        self.umass_inv = assemble(a_u_slate)
 
 
         # The right-hand-side is more interesting.  We define ``n`` to be the built-in
@@ -184,6 +198,12 @@ class SWEWithProjection:
             self.L2_D = L2_D
             self.L3_D = L3_D
             self.rhs = Cofunction(V2.dual())
+
+            self.L1_u = L1_u
+            self.L2_u = L2_u
+            self.L3_u = L3_u
+            self.rhs_u = Cofunction(V1_broken.dual())
+
 
         
 
@@ -310,13 +330,31 @@ class SWEWithProjection:
             self.solv_3_D.solve()
         self.D.assign((1.0/3.0)*self.D + (2.0/3.0)*(self.D2 + self.dD))
 
-        self.solv_1_u.solve()
+        if self.slate_inv:
+            print("using slate mass inverse for u")
+            assemble(self.L1_u, tensor = self.rhs_u)
+            with self.du.dat.vec_wo as x_, self.rhs_u.dat.vec_ro as b_:
+                self.umass_inv.petscmat.mult(b_, x_)
+        else:
+            self.solv_1_u.solve()
         self.u1.assign(self.u + self.du)
 
-        self.solv_2_u.solve()
+        if self.slate_inv:
+            print("using slate mass inverse for u")
+            assemble(self.L2_u, tensor = self.rhs_u)
+            with self.du.dat.vec_wo as x_, self.rhs_u.dat.vec_ro as b_:
+                self.umass_inv.petscmat.mult(b_, x_)
+        else:
+            self.solv_2_u.solve()
         self.u2.assign(0.75*self.u + 0.25*(self.u1 + self.du))
 
-        self.solv_3_u.solve()
+        if self.slate_inv:
+            print("using slate mass inverse for u")
+            assemble(self.L3_u, tensor = self.rhs_u)
+            with self.du.dat.vec_wo as x_, self.rhs_u.dat.vec_ro as b_:
+                self.umass_inv.petscmat.mult(b_, x_)
+        else:
+            self.solv_3_u.solve()
         self.u.assign((1.0/3.0)*self.u + (2.0/3.0)*(self.u2 + self.du))
 
     @PETSc.Log.EventDecorator("advection_step")     
@@ -347,6 +385,8 @@ class SWEWithProjection:
 
         self.Dn.assign(self.Dnp1)
         self.un.assign(self.unp1)
+        self.u_pert.assign(self.un - self.u0)
+        self.D_pert.assign(self.Dn - self.D0)
         self.ubar.assign(self.un)
         self.Dplusb.assign(self.Dn + self.b)
     
@@ -402,11 +442,15 @@ class SWEWithProjection:
     @PETSc.Log.EventDecorator("compute_energies")    
     def compute_phys_quant(self):
          g = Constant(9.8)  # Gravitational constant
-         energy = assemble((0.5*inner(self.un,self.un)*self.Dn + 0.5 * g * (self.Dn+self.b)**2)*dx)
-         enstrophy = assemble(self.pot_qn*self.pot_qn*self.Dn*dx)
+         energy = assemble((0.5*inner(self.un,self.un)*self.Dn + 0.5 * g * (self.Dn+self.b)**2)*dx) # this is not the exact energy, there is an additional term, which is conserved anyways
+         enstrophy = assemble(0.5*self.pot_qn*self.pot_qn*self.Dn*dx)
          div_l2 = sqrt(assemble(div(self.un)*div(self.un)*dx))
-         print("energy =", energy)
-         return energy, enstrophy, div_l2
+
+         #energy_error = abs(energy - self.energy0)/self.energy0
+         #enstr_error = abs(enstrophy - self.enstrophy0)/self.enstrophy0
+         #div_l2_error = abs(div_l2 - self.div_l20)/self.div_l20
+         return energy, enstrophy, div_l2 #, energy_error, enstr_error, div_l2_error
+
     
     def compute_error_sbr(self):
         # EXACT SOLUTION

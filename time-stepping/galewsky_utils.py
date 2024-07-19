@@ -153,7 +153,7 @@ def depth_expression(x, y, z):
     hpert = depth_perturbation(*cart_to_sphere_coords(x, y, z), V)
     h += H0 - hmean + hpert
 
-    return h
+    return h, hpert
 
 def depth_function(x, y, z, V2, name="depth"):
     eta = fd.Function(V2, name=name)
