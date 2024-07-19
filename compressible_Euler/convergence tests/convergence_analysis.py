@@ -95,6 +95,7 @@ elt = P1P0 + P0P1
 V, _, V1, _, _ = build_spaces(mesh, 1, 1)
 u_out = Function(V)
 rho_out = Function(V1)
+'''
 file_exact = File("../Results/convergence/vortex_exact.pvd")
 ts = [0, 25., 50., 100.]
 for t in ts:
@@ -105,6 +106,8 @@ for t in ts:
     rho_out.interpolate(rho)
 
     file_exact.write(u_out, rho_out)
+'''
+
 '''
 index =0
 
@@ -327,9 +330,9 @@ with open("../Results/convergence/vortex125_uerrors.txt") as file:
     for line in file:
         uerrors125.append(float(line.rstrip()))
 
-print(len(uerrors125))
+print(len(uerrors80))
 i=-1
-uerrors = np.array([uerrors10[-1], uerrors20[-1], uerrors40[-1], uerrors80[199], uerrors125[199]])
+uerrors = np.array([uerrors10[i], uerrors20[i], uerrors40[i], uerrors80[i], uerrors125[i]])
 
 rhoerrors10 =[]
 rhoerrors20 =[]
@@ -350,7 +353,7 @@ with open("../Results/convergence/vortex40_rhoerrors.txt") as file:
 with open("../Results/convergence/vortex80_rhoerrors.txt") as file:
     for line in file:
         rhoerrors80.append(float(line.rstrip()))
-with open("../Results/convergence/vortex160_rhoerrors.txt") as file:
+with open("../Results/convergence/vortex125_rhoerrors.txt") as file:
     for line in file:
         rhoerrors160.append(float(line.rstrip()))
 
@@ -376,7 +379,7 @@ with open("../Results/convergence/vortex40_thetaerrors.txt") as file:
 with open("../Results/convergence/vortex80_thetaerrors.txt") as file:
     for line in file:
         thetaerrors80.append(float(line.rstrip()))
-with open("../Results/convergence/vortex160_thetaerrors.txt") as file:
+with open("../Results/convergence/vortex125_thetaerrors.txt") as file:
     for line in file:
         thetaerrors160.append(float(line.rstrip()))
 
@@ -385,31 +388,62 @@ thetaerrors = np.array([thetaerrors10[i], thetaerrors20[i], thetaerrors40[i], th
 
 
 fig, axes = plt.subplots()
-axes.set_title("Loglog plot of velocity errors")
-plt.loglog(mesh_sizes, uerrors, color = "red", label = "u-error", marker = ".")
-plt.loglog(mesh_sizes, 1e4*hpower, color = "orange", label = "h^2", marker = ".")
+axes.set_title("velocity errors")
+plt.loglog(mesh_sizes, 0.8*1e-4*uerrors, color = "blue", label = "$e_{\mathrm{u}}$", marker = "x")
+plt.loglog(mesh_sizes, hpower, color = "orange", label = "$h^2$")
 axes.legend()
+axes.set(xlabel='$ \log h$', ylabel='$ \log e_u$')
 fig.savefig("uerrors.png")
 plt.show()
 
+
 fig, axes = plt.subplots()
-axes.set_title("Loglog plot of density errors")
-plt.loglog(mesh_sizes, rhoerrors, color = "red", label = "u-error", marker = ".")
-plt.loglog(mesh_sizes, hpower, color = "orange", label = "h^2", marker = ".")
+axes.set_title("density errors")
+plt.loglog(mesh_sizes, rhoerrors, color = "blue", label = "$e_{\mathrm{u}}$", marker = "x")
+plt.loglog(mesh_sizes, hpower, color = "orange", label = "$h^2$")
 axes.legend()
+axes.set(xlabel='$\log h$', ylabel='$\log e_u$')
 fig.savefig("rhoerrors.png")
 plt.show()
 
+
 fig, axes = plt.subplots()
-axes.set_title("Loglog plot of theta errors")
-plt.loglog(mesh_sizes, thetaerrors, color = "red", label = "u-error", marker = ".")
-plt.loglog(mesh_sizes, hpower, color = "orange", label = "h^2", marker = ".")
+axes.set_title("potential temperature errors")
+plt.loglog(mesh_sizes, thetaerrors, color = "blue", label = "$e_{\mathrm{u}}$", marker = "x")
+plt.loglog(mesh_sizes, hpower, color = "orange", label = "$h^2$")
 axes.legend()
-fig.savefig("rhoerrors.png")
+axes.set(xlabel='$ \log h$', ylabel='$ \log e_u$')
+fig.savefig("thetaerrors.png")
 plt.show()
 
 '''
-nx = 128, dt=0.1
-nx = 64, dt = 0.25
-nx = 32, dt=0.5
+style = "classic"
+with plt.style.context(style):
+    fig, axes = plt.subplots()
+    axes.set_title("Loglog plot of theta errors")
+    plt.loglog(mesh_sizes, thetaerrors, color = "blue", label = "$e_{\mathrm{u}}$", marker = "x")
+    plt.loglog(mesh_sizes, hpower, color = "orange", label = "h^2")
+    axes.legend()
+    plt.show()
+
+
+available_styles = plt.style.available
+n_styles = len(available_styles)
+
+fig = plt.figure(dpi=100)
+style = "classic"
+with plt.style.context(style):
+
+    ax = fig.add_subplot()
+        
+    plt.loglog(mesh_sizes, 1e-4*uerrors, color = "blue", label = "$e_u$", marker = "x")
+    plt.loglog(mesh_sizes, hpower, color = "orange", label = "$h^2$", marker = ".")
+    
+    ax.tick_params(axis='x', labelrotation = 90)
+    ax.set(xlabel='mesh size (normalised)', ylabel='$e_u$')
+    ax.legend(loc='center right', ncol=4)
+    ax.legend()
+    ax.set_title("velocity errors")
+    ax.set_xlim(left = 0.4*1e-2, right = 1.5*1e-1)
+plt.show()
 '''
